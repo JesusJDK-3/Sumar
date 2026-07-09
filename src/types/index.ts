@@ -1,0 +1,102 @@
+export type Gender = "M" | "F" | "Otro"
+export type PatientStatus = "Activo" | "Inactivo" | "Alta" | "En espera"
+export type SessionStatus = "Realizada" | "Cancelada" | "Reprogramada" | "Pendiente"
+export type PaymentMethod = "Efectivo" | "Transferencia" | "Tarjeta" | "Yape" | "Plin"
+export type PaymentStatus = "Pagado" | "Parcial" | "Pendiente"
+export type AppointmentStatus = "Confirmada" | "Cancelada" | "Reprogramada" | "Pendiente"
+export type AttendanceStatus = "Presente" | "Ausente" | "Tardanza" | "Justificado"
+
+export interface Patient {
+  id: string
+  code: string
+  firstName: string
+  lastName: string
+  age: number
+  gender: Gender
+  dni: string
+  phone: string
+  email: string
+  address: string
+  emergencyContact: string
+  emergencyPhone: string
+  insurance: string
+  therapistId: string
+  status: PatientStatus
+  registeredAt: string
+  diagnosis: string
+  notes: string
+}
+
+export interface Therapist {
+  id: string
+  firstName: string
+  lastName: string
+  specialty: string
+  phone: string
+  email: string
+  color: string
+}
+
+export interface ClinicalRecord {
+  id: string
+  patientId: string
+  date: string
+  sessionNumber: number
+  therapistId: string
+  objectives: string
+  observations: string
+  diagnosis: string
+  treatment: string
+  nextSteps: string
+  mood: number
+  progress: number
+}
+
+export interface Session {
+  id: string
+  patientId: string
+  therapistId: string
+  date: string
+  startTime: string
+  endTime: string
+  type: string
+  status: SessionStatus
+  notes: string
+  fee: number
+}
+
+export interface Payment {
+  id: string
+  patientId: string
+  sessionId?: string
+  date: string
+  amount: number
+  type: "Por sesión" | "Mensualidad" | "Parcial"
+  method: PaymentMethod
+  status: PaymentStatus
+  period?: string
+  notes: string
+  receiptNumber: string
+}
+
+export interface Appointment {
+  id: string
+  patientId: string
+  therapistId: string
+  date: string
+  startTime: string
+  endTime: string
+  type: string
+  status: AppointmentStatus
+  notes: string
+}
+
+export interface AttendanceRecord {
+  id: string
+  entityId: string
+  entityType: "patient" | "therapist"
+  date: string
+  status: AttendanceStatus
+  checkinTime?: string
+  notes: string
+}
