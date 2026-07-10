@@ -7,14 +7,14 @@ interface ClinicalRecordRow {
   session_id: string | null
   therapist_id: string
   date: string
-  session_number: number
-  objectives: string
-  observations: string
-  diagnosis: string
-  treatment: string
-  next_steps: string
-  mood: number
-  progress: number
+  session_number: number | null
+  objectives: string | null
+  observations: string | null
+  diagnosis: string | null
+  treatment: string | null
+  next_steps: string | null
+  mood: number | null
+  progress: number | null
 }
 
 function rowToRecord(row: ClinicalRecordRow): ClinicalRecord {
@@ -24,14 +24,14 @@ function rowToRecord(row: ClinicalRecordRow): ClinicalRecord {
     sessionId: row.session_id ?? undefined,
     therapistId: row.therapist_id,
     date: row.date,
-    sessionNumber: row.session_number,
-    objectives: row.objectives,
-    observations: row.observations,
-    diagnosis: row.diagnosis,
-    treatment: row.treatment,
-    nextSteps: row.next_steps,
-    mood: row.mood,
-    progress: row.progress,
+    sessionNumber: row.session_number ?? 0,
+    objectives: row.objectives ?? "",
+    observations: row.observations ?? "",
+    diagnosis: row.diagnosis ?? "",
+    treatment: row.treatment ?? "",
+    nextSteps: row.next_steps ?? "",
+    mood: row.mood ?? 3,
+    progress: row.progress ?? 50,
   }
 }
 
@@ -41,14 +41,14 @@ function recordToRow(r: Partial<ClinicalRecord>) {
     session_id: r.sessionId ?? null,
     therapist_id: r.therapistId,
     date: r.date,
-    session_number: r.sessionNumber,
-    objectives: r.objectives,
-    observations: r.observations,
-    diagnosis: r.diagnosis,
-    treatment: r.treatment,
-    next_steps: r.nextSteps,
-    mood: r.mood,
-    progress: r.progress,
+    session_number: r.sessionNumber ?? null,
+    objectives: r.objectives || null,
+    observations: r.observations || null,
+    diagnosis: r.diagnosis || null,
+    treatment: r.treatment || null,
+    next_steps: r.nextSteps || null,
+    mood: r.mood ?? null,
+    progress: r.progress ?? null,
   }
 }
 
@@ -62,9 +62,7 @@ export async function getClinicalRecords(): Promise<ClinicalRecord[]> {
   return (data as ClinicalRecordRow[]).map(rowToRecord)
 }
 
-// NUEVO: Trae sesiones de un paciente que NO tienen registro clínico
 export async function getSessionsWithoutRecord(patientId: string): Promise<Session[]> {
-  // Primero traemos todos los registros clínicos del paciente
   const { data: recordsData, error: recordsError } = await supabase
     .from('clinical_records')
     .select('session_id')
@@ -75,7 +73,6 @@ export async function getSessionsWithoutRecord(patientId: string): Promise<Sessi
 
   const recordedSessionIds = new Set((recordsData || []).map(r => r.session_id))
 
-  // Traemos todas las sesiones del paciente
   const { data: sessionsData, error: sessionsError } = await supabase
     .from('sessions')
     .select('*, patients(*)')
@@ -85,8 +82,23 @@ export async function getSessionsWithoutRecord(patientId: string): Promise<Sessi
 
   if (sessionsError) throw sessionsError
 
-  // Filtramos las que ya tienen registro clínico
-  return (sessionsData || []).filter((s: Record<string, unknown>) => !recordedSessionIds.has(s.id))
+  interface RawSession {
+    id: string
+    patient_id: string
+    therapist_id: string
+    service_id: string | null
+    date: string
+    start_time: string
+    end_time: string
+    type: string
+    status: string
+    notes: string
+    fee: number
+    created_at: string
+    patients?: { id: string; first_name: string; last_name: string }
+  }
+
+  return ((sessionsData || []) as RawSession[]).filter(s => !recordedSessionIds.has(s.id)) as unknown as Session[]
 }
 
 export async function createClinicalRecord(record: Omit<ClinicalRecord, 'id'>): Promise<ClinicalRecord> {

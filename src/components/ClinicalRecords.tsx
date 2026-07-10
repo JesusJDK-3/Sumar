@@ -5,19 +5,28 @@ import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import type { ClinicalRecord, Patient, Therapist, Session } from "../types"
 
+// Mapa de ánimo a progreso automático
+const MOOD_TO_PROGRESS: Record<number, number> = {
+  1: 20,   // Muy bajo
+  2: 40,   // Bajo
+  3: 60,   // Regular
+  4: 80,   // Bueno
+  5: 100,  // Excelente
+}
+
 export default function ClinicalRecords() {
   const [records, setRecords] = useState<ClinicalRecord[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
-  const [sessionsWithoutRecord, setSessionsWithoutRecord] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedPatientId, setSelectedPatientId] = useState("")
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [selectedRecord, setSelectedRecord] = useState<ClinicalRecord | null>(null)
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [form, setForm] = useState<Partial<ClinicalRecord>>({})
+  const [sessionsWithoutRecord, setSessionsWithoutRecord] = useState<Session[]>([])
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -41,7 +50,6 @@ export default function ClinicalRecords() {
     load()
   }, [])
 
-  // Cargar sesiones sin registro clínico cuando cambia el paciente seleccionado
   useEffect(() => {
     if (!selectedPatientId) return
     async function loadSessions() {
@@ -53,7 +61,7 @@ export default function ClinicalRecords() {
       }
     }
     loadSessions()
-  }, [selectedPatientId, records]) // Se recarga cuando cambian los records también
+  }, [selectedPatientId, records])
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando historia clínica...</div>
@@ -69,7 +77,6 @@ export default function ClinicalRecords() {
     .filter(r => r.patientId === selectedPatientId)
     .sort((a, b) => b.date.localeCompare(a.date))
 
-  // Abrir formulario para completar ficha de una sesión existente
   const openRecordForSession = (session: Session) => {
     setSelectedSession(session)
     setForm({
@@ -84,7 +91,7 @@ export default function ClinicalRecords() {
       treatment: "",
       nextSteps: "",
       mood: 3,
-      progress: 50,
+      progress: MOOD_TO_PROGRESS[3],
     })
     setShowForm(true)
     setSelectedRecord(null)
@@ -97,14 +104,14 @@ export default function ClinicalRecords() {
         sessionId: form.sessionId,
         therapistId: form.therapistId!,
         date: form.date!,
-        sessionNumber: form.sessionNumber!,
+        sessionNumber: form.sessionNumber ?? 1,
         objectives: form.objectives || "",
         observations: form.observations || "",
         diagnosis: form.diagnosis || "",
         treatment: form.treatment || "",
         nextSteps: form.nextSteps || "",
-        mood: form.mood || 3,
-        progress: form.progress || 50,
+        mood: form.mood ?? 3,
+        progress: form.progress ?? 50,
       })
       setRecords(prev => [created, ...prev])
       setShowForm(false)
@@ -128,7 +135,7 @@ export default function ClinicalRecords() {
           {error}
         </div>
       )}
-      {/* Patient list */}
+
       <div className="w-64 bg-white border-r border-[#E2E7EF] flex flex-col overflow-hidden shrink-0">
         <div className="p-4 border-b border-[#E2E7EF]">
           <h1 className="font-bold text-[#2B3A5C] text-base mb-3" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -172,9 +179,7 @@ export default function ClinicalRecords() {
         </div>
       </div>
 
-      {/* Records area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Patient header */}
         {patient && (
           <div className="bg-white border-b border-[#E2E7EF] px-6 py-4 flex items-center justify-between">
             <div>
@@ -192,10 +197,8 @@ export default function ClinicalRecords() {
         )}
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Timeline */}
           <div className="flex-1 overflow-y-auto p-5 space-y-3">
             
-            {/* Sesiones pendientes de ficha clínica */}
             {sessionsWithoutRecord.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-xs font-bold text-[#E8481E] uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -241,7 +244,6 @@ export default function ClinicalRecords() {
               </div>
             )}
 
-            {/* Registros clínicos existentes */}
             {patientRecords.length > 0 && (
               <div>
                 <h3 className="text-xs font-bold text-[#2B3A5C] uppercase tracking-wide mb-3 flex items-center gap-1.5">
@@ -288,7 +290,6 @@ export default function ClinicalRecords() {
             )}
           </div>
 
-          {/* Detail panel */}
           {selectedRecord && (
             <div className="w-80 bg-white border-l border-[#E2E7EF] p-5 overflow-y-auto shrink-0">
               <div className="flex items-center justify-between mb-4">
@@ -320,7 +321,6 @@ export default function ClinicalRecords() {
         </div>
       </div>
 
-      {/* Form modal - completar ficha clínica de una sesión existente */}
       {showForm && selectedSession && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -331,7 +331,6 @@ export default function ClinicalRecords() {
               <button onClick={() => { setShowForm(false); setSelectedSession(null) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
             
-            {/* Info de la sesión (solo lectura) */}
             <div className="px-6 py-3 bg-[#F2F4F8] border-b border-[#E2E7EF]">
               <p className="text-xs text-[#6B7A94]">
                 <span className="font-semibold text-[#2B3A5C]">Sesión:</span> {selectedSession.date} · {selectedSession.startTime} - {selectedSession.endTime}
@@ -356,7 +355,16 @@ export default function ClinicalRecords() {
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado de ánimo (1-5)</label>
                   <div className="relative">
-                    <select value={form.mood || 3} onChange={e => setForm(f => ({ ...f, mood: +e.target.value }))}
+                    <select 
+                      value={form.mood || 3} 
+                      onChange={e => {
+                        const mood = +e.target.value
+                        setForm(f => ({ 
+                          ...f, 
+                          mood,
+                          progress: MOOD_TO_PROGRESS[mood]
+                        }))
+                      }}
                       className="w-full appearance-none px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
                       {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} - {["","Muy bajo","Bajo","Regular","Bueno","Excelente"][n]}</option>)}
                     </select>
@@ -365,7 +373,8 @@ export default function ClinicalRecords() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Progreso (%)</label>
-                  <input type="number" min={0} max={100} value={form.progress || 50} onChange={e => setForm(f => ({ ...f, progress: +e.target.value }))}
+                  <input type="number" min={0} max={100} value={form.progress || 50} 
+                    onChange={e => setForm(f => ({ ...f, progress: +e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
                 </div>
               </div>
