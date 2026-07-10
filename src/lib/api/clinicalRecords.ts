@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient'
-import type { ClinicalRecord } from '../../types'
+import type { ClinicalRecord, Session } from '../../types'
 
 interface ClinicalRecordRow {
   id: string
@@ -21,6 +21,7 @@ function rowToRecord(row: ClinicalRecordRow): ClinicalRecord {
   return {
     id: row.id,
     patientId: row.patient_id,
+    sessionId: row.session_id ?? undefined,
     therapistId: row.therapist_id,
     date: row.date,
     sessionNumber: row.session_number,
@@ -34,7 +35,7 @@ function rowToRecord(row: ClinicalRecordRow): ClinicalRecord {
   }
 }
 
-function recordToRow(r: Partial<ClinicalRecord> & { sessionId?: string }) {
+function recordToRow(r: Partial<ClinicalRecord>) {
   return {
     patient_id: r.patientId,
     session_id: r.sessionId ?? null,
@@ -59,6 +60,33 @@ export async function getClinicalRecords(): Promise<ClinicalRecord[]> {
 
   if (error) throw error
   return (data as ClinicalRecordRow[]).map(rowToRecord)
+}
+
+// NUEVO: Trae sesiones de un paciente que NO tienen registro clínico
+export async function getSessionsWithoutRecord(patientId: string): Promise<Session[]> {
+  // Primero traemos todos los registros clínicos del paciente
+  const { data: recordsData, error: recordsError } = await supabase
+    .from('clinical_records')
+    .select('session_id')
+    .eq('patient_id', patientId)
+    .not('session_id', 'is', null)
+
+  if (recordsError) throw recordsError
+
+  const recordedSessionIds = new Set((recordsData || []).map(r => r.session_id))
+
+  // Traemos todas las sesiones del paciente
+  const { data: sessionsData, error: sessionsError } = await supabase
+    .from('sessions')
+    .select('*, patients(*)')
+    .eq('patient_id', patientId)
+    .eq('status', 'Realizada')
+    .order('date', { ascending: false })
+
+  if (sessionsError) throw sessionsError
+
+  // Filtramos las que ya tienen registro clínico
+  return (sessionsData || []).filter((s: Record<string, unknown>) => !recordedSessionIds.has(s.id))
 }
 
 export async function createClinicalRecord(record: Omit<ClinicalRecord, 'id'>): Promise<ClinicalRecord> {

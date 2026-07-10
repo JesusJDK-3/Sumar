@@ -1,100 +1,130 @@
 import { useState, useEffect } from "react"
-import { Plus, X, ChevronDown, Search, Receipt, AlertCircle } from "lucide-react"
-import { getPayments, createPayment } from "../lib/api/payments"
+import { X, Search, CreditCard, Banknote, Smartphone } from "lucide-react"
+import { getPayments, getSessionsWithoutPayment, createPayment } from "../lib/api/payments"
 import { getPatients } from "../lib/api/patients"
-import type { Payment, PaymentMethod, PaymentStatus, Patient } from "../types"
+import type { Payment, Session, Patient, PaymentMethod } from "../types"
 
-const statusColor: Record<PaymentStatus, string> = {
+
+type ViewMode = "historial" | "pendientes"
+type KpiFilter = "todos" | "ingresos" | "cobrado" | "parciales" | "porCobrar"
+
+const methodIcon: Record<PaymentMethod, typeof Banknote> = {
+  Efectivo: Banknote,
+  Transferencia: Banknote,
+  Tarjeta: CreditCard,
+  Yape: Smartphone,
+  Plin: Smartphone,
+}
+
+const statusColor = {
   Pagado: "bg-emerald-100 text-emerald-700",
   Parcial: "bg-amber-100 text-amber-700",
   Pendiente: "bg-red-100 text-red-700",
 }
 
-const methodColor: Record<PaymentMethod, string> = {
-  Efectivo: "bg-slate-100 text-slate-700",
-  Transferencia: "bg-blue-100 text-blue-700",
-  Tarjeta: "bg-purple-100 text-purple-700",
-  Yape: "bg-violet-100 text-violet-700",
-  Plin: "bg-teal-100 text-teal-700",
-}
-
 export default function Payments() {
-  const [paymentList, setPaymentList] = useState<Payment[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [pendingSessions, setPendingSessions] = useState<Session[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>("historial")
+  const [kpiFilter, setKpiFilter] = useState<KpiFilter>("todos")
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<PaymentStatus | "Todos">("Todos")
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState<Partial<Payment>>({
-    date: new Date().toISOString().split("T")[0],
-    amount: 120,
-    type: "Por sesión",
-    method: "Efectivo",
-    status: "Pagado",
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+
+  // Form de pago
+  const [payForm, setPayForm] = useState({
+    amountReceived: 0,
+    method: "Efectivo" as PaymentMethod,
     notes: "",
-    receiptNumber: "",
-    period: "",
   })
 
   useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true)
-        const [paymentsData, patientsData] = await Promise.all([getPayments(), getPatients()])
-        setPaymentList(paymentsData)
-        setPatients(patientsData)
-        setForm(f => ({ ...f, patientId: patientsData[0]?.id }))
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar datos")
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    loadData()
   }, [])
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando pagos...</div>
+  async function loadData() {
+    try {
+      setLoading(true)
+      const [paymentsData, pendingData, patientsData] = await Promise.all([
+        getPayments(),
+        getSessionsWithoutPayment(),
+        getPatients(),
+      ])
+      setPayments(paymentsData)
+      setPendingSessions(pendingData)
+      setPatients(patientsData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar datos")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const getPatient = (id: string) => patients.find(p => p.id === id)
 
-  const filtered = paymentList
-    .filter(pay => {
-      const p = getPatient(pay.patientId)
-      const name = `${p?.firstName} ${p?.lastName}`.toLowerCase()
-      const matchSearch = !search || name.includes(search.toLowerCase()) || pay.receiptNumber.toLowerCase().includes(search.toLowerCase())
-      const matchStatus = statusFilter === "Todos" || pay.status === statusFilter
-      return matchSearch && matchStatus
-    })
-    .sort((a, b) => b.date.localeCompare(a.date))
+  // KPIs
+  const currentMonth = new Date().toISOString().slice(0, 7) // "2026-07"
+  const monthPayments = payments.filter(p => p.date.startsWith(currentMonth))
+  
+  const stats = {
+    ingresosMes: monthPayments.reduce((sum, p) => sum + p.amount, 0),
+    totalCobrado: payments.filter(p => p.status === "Pagado").reduce((sum, p) => sum + p.amount, 0),
+    pagosParciales: payments.filter(p => p.status === "Parcial").length,
+    porCobrar: pendingSessions.reduce((sum, s) => sum + (s.fee - (payments.filter(pay => pay.sessionId === s.id).reduce((a, b) => a + b.amount, 0))), 0),
+  }
 
-  const totalPaid = paymentList.filter(p => p.status === "Pagado").reduce((a, p) => a + p.amount, 0)
-  const totalPending = paymentList.filter(p => p.status === "Pendiente").reduce((a, p) => a + p.amount, 0)
-  const totalPartial = paymentList.filter(p => p.status === "Parcial").reduce((a, p) => a + p.amount, 0)
-  const currentMonth = new Date().toISOString().slice(0, 7)
-  const monthTotal = paymentList.filter(p => p.status === "Pagado" && p.date.startsWith(currentMonth)).reduce((a, p) => a + p.amount, 0)
+  // Filtrar pagos según KPI seleccionado
+  const filteredPayments = payments.filter(p => {
+    const patient = getPatient(p.patientId)
+    const name = `${patient?.firstName} ${patient?.lastName}`.toLowerCase()
+    const matchSearch = !search || name.includes(search.toLowerCase()) || p.date.includes(search)
+    
+    if (kpiFilter === "todos") return matchSearch
+    if (kpiFilter === "cobrado") return p.status === "Pagado" && matchSearch
+    if (kpiFilter === "parciales") return p.status === "Parcial" && matchSearch
+    if (kpiFilter === "ingresos") return p.date.startsWith(currentMonth) && matchSearch
+    return matchSearch
+  })
 
-  const handleSave = async () => {
+  const handlePay = async () => {
+    if (!selectedSession) return
     try {
-      const receipt = form.receiptNumber || `R-${Date.now().toString().slice(-6)}`
-      const created = await createPayment({
-        patientId: form.patientId!,
-        date: form.date!,
-        amount: form.amount!,
-        type: form.type as Payment["type"],
-        method: form.method as PaymentMethod,
-        status: form.status as PaymentStatus,
-        notes: form.notes || "",
-        receiptNumber: receipt,
-        period: form.period,
+      await createPayment({
+        sessionId: selectedSession.id,
+        patientId: selectedSession.patientId,
+        amountReceived: payForm.amountReceived,
+        method: payForm.method,
+        notes: payForm.notes,
       })
-      setPaymentList(prev => [created, ...prev])
-      setShowForm(false)
+      setShowPayModal(false)
+      setSelectedSession(null)
+      setPayForm({ amountReceived: 0, method: "Efectivo", notes: "" })
+      await loadData() // Recargar todo
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrar pago")
     }
+  }
+
+  const openPayModal = (session: Session) => {
+    setSelectedSession(session)
+    // Calcular cuánto falta pagar
+    const paid = payments
+      .filter(p => p.sessionId === session.id)
+      .reduce((sum, p) => sum + p.amount, 0)
+    const remaining = session.fee - paid
+    setPayForm({
+      amountReceived: remaining, // Sugerir el monto que falta
+      method: "Efectivo",
+      notes: "",
+    })
+    setShowPayModal(true)
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando pagos...</div>
   }
 
   return (
@@ -104,174 +134,285 @@ export default function Payments() {
           {error}
         </div>
       )}
+
       {/* Header */}
       <div className="bg-white border-b border-[#E2E7EF] px-6 py-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Gestión de Pagos</h1>
-          <p className="text-xs text-[#6B7A94] mt-0.5">{paymentList.length} registros</p>
+          <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Gestión de Pagos
+          </h1>
+          <p className="text-xs text-[#6B7A94] mt-0.5">
+            {viewMode === "historial" ? `${payments.length} pagos registrados` : `${pendingSessions.length} pendientes de cobro`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B7A94]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar paciente o recibo..."
-              className="pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-52 bg-[#F2F4F8]" />
+            <input 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              placeholder="Buscar paciente..."
+              className="pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-44 bg-[#F2F4F8]" 
+            />
           </div>
-          <div className="relative">
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as PaymentStatus | "Todos")}
-              className="appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
-              {["Todos", "Pagado", "Parcial", "Pendiente"].map(s => <option key={s}>{s}</option>)}
-            </select>
-            <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
+          <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
+            <button 
+              onClick={() => { setViewMode("historial"); setKpiFilter("todos") }}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${viewMode === "historial" ? "bg-white text-[#2B3A5C] shadow-sm" : "text-[#6B7A94]"}`}
+            >
+              Historial
+            </button>
+            <button 
+              onClick={() => { setViewMode("pendientes"); setKpiFilter("porCobrar") }}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${viewMode === "pendientes" ? "bg-white text-[#E8481E] shadow-sm" : "text-[#6B7A94]"}`}
+            >
+              Por cobrar
+            </button>
           </div>
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors">
-            <Plus size={14} /> Registrar pago
-          </button>
         </div>
       </div>
 
-      {/* KPI cards */}
+      {/* KPIs clickeables */}
       <div className="grid grid-cols-4 gap-4 p-5 pb-0">
-        {[
-          { label: "Ingresos del mes", value: `S/ ${monthTotal.toLocaleString()}`, color: "#059669", bg: "#ECFDF5" },
-          { label: "Total cobrado", value: `S/ ${totalPaid.toLocaleString()}`, color: "#2B3A5C", bg: "#EEF1F8" },
-          { label: "Pagos parciales", value: `S/ ${totalPartial}`, color: "#D97706", bg: "#FFFBEB" },
-          { label: "Por cobrar", value: `S/ ${totalPending}`, color: "#DC2626", bg: "#FEF2F2" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} className="bg-white rounded-xl border border-[#E2E7EF] p-4 shadow-sm">
-            <p className="text-2xl font-bold" style={{ color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
-            <p className="text-xs text-[#6B7A94] font-medium mt-0.5">{label}</p>
-          </div>
-        ))}
+        <button 
+          onClick={() => { setViewMode("historial"); setKpiFilter("ingresos") }}
+          className={`bg-white rounded-xl border p-4 shadow-sm text-left transition-all hover:shadow-md ${kpiFilter === "ingresos" ? "border-[#E8481E] ring-1 ring-[#E8481E]" : "border-[#E2E7EF]"}`}
+        >
+          <p className="text-2xl font-bold text-emerald-600" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            S/ {stats.ingresosMes}
+          </p>
+          <p className="text-xs text-[#6B7A94] font-medium mt-0.5">Ingresos del mes</p>
+        </button>
+        <button 
+          onClick={() => { setViewMode("historial"); setKpiFilter("cobrado") }}
+          className={`bg-white rounded-xl border p-4 shadow-sm text-left transition-all hover:shadow-md ${kpiFilter === "cobrado" ? "border-[#E8481E] ring-1 ring-[#E8481E]" : "border-[#E2E7EF]"}`}
+        >
+          <p className="text-2xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            S/ {stats.totalCobrado}
+          </p>
+          <p className="text-xs text-[#6B7A94] font-medium mt-0.5">Total cobrado</p>
+        </button>
+        <button 
+          onClick={() => { setViewMode("historial"); setKpiFilter("parciales") }}
+          className={`bg-white rounded-xl border p-4 shadow-sm text-left transition-all hover:shadow-md ${kpiFilter === "parciales" ? "border-[#E8481E] ring-1 ring-[#E8481E]" : "border-[#E2E7EF]"}`}
+        >
+          <p className="text-2xl font-bold text-amber-600" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {stats.pagosParciales}
+          </p>
+          <p className="text-xs text-[#6B7A94] font-medium mt-0.5">Pagos parciales</p>
+        </button>
+        <button 
+          onClick={() => { setViewMode("pendientes"); setKpiFilter("porCobrar") }}
+          className={`bg-white rounded-xl border p-4 shadow-sm text-left transition-all hover:shadow-md ${kpiFilter === "porCobrar" ? "border-[#E8481E] ring-1 ring-[#E8481E]" : "border-[#E2E7EF]"}`}
+        >
+          <p className="text-2xl font-bold text-red-600" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            S/ {stats.porCobrar}
+          </p>
+          <p className="text-xs text-[#6B7A94] font-medium mt-0.5">Por cobrar</p>
+        </button>
       </div>
 
-      {/* Pending alerts */}
-      {paymentList.filter(p => p.status !== "Pagado").length > 0 && (
-        <div className="mx-5 mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Cuentas por cobrar pendientes</p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              {paymentList.filter(p => p.status === "Pendiente").length} pagos pendientes y{" "}
-              {paymentList.filter(p => p.status === "Parcial").length} pagos parciales sin completar.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Table */}
+      {/* Tabla */}
       <div className="flex-1 overflow-auto p-5">
         <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E2E7EF]">
-                {["Recibo", "Fecha", "Paciente", "Tipo", "Método", "Monto", "Estado", "Notas"].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F2F4F8]">
-              {filtered.map(pay => {
-                const p = getPatient(pay.patientId)
-                return (
-                  <tr key={pay.id} className="hover:bg-[#F8F9FC] transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <Receipt size={13} className="text-[#6B7A94]" />
-                        <span className="font-mono text-xs text-[#6B7A94]">{pay.receiptNumber}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-[#1A2332]">{pay.date}</td>
-                    <td className="px-4 py-3 font-semibold text-[#1A2332]">{p?.firstName} {p?.lastName}</td>
-                    <td className="px-4 py-3 text-[#6B7A94] text-xs">{pay.type}{pay.period ? ` · ${pay.period}` : ""}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${methodColor[pay.method as PaymentMethod]}`}>
-                        {pay.method}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-bold text-[#2B3A5C]">S/ {pay.amount}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[pay.status]}`}>
-                        {pay.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#6B7A94] max-w-[160px] truncate">{pay.notes || "—"}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          {viewMode === "historial" ? (
+            // HISTORIAL DE PAGOS
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#E2E7EF]">
+                  {["Fecha", "Paciente", "Sesión", "Método", "Monto", "Estado", "Notas"].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F2F4F8]">
+                {filteredPayments.map(p => {
+                  const patient = getPatient(p.patientId)
+                  const MethodIcon = methodIcon[p.method] || Banknote
+                  return (
+                    <tr key={p.id} className="hover:bg-[#F8F9FC] transition-colors">
+                      <td className="px-4 py-3 text-[#1A2332] font-medium">{p.date}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-[#1A2332]">{patient?.firstName} {patient?.lastName}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7A94] text-xs">Sesión #{p.sessionId?.slice(0, 6)}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 text-[#6B7A94]">
+                          <MethodIcon size={13} /> {p.method}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-[#2B3A5C]">S/ {p.amount}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[p.status]}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7A94] text-xs">{p.notes || "—"}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          ) : (
+            // PENDIENTES DE COBRO
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#E2E7EF]">
+                  {["Fecha", "Paciente", "Servicio", "Honorario", "Pagado", "Debe", ""].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F2F4F8]">
+                {pendingSessions.map(s => {
+                  const patient = getPatient(s.patientId)
+                  const paid = payments
+                    .filter(p => p.sessionId === s.id)
+                    .reduce((sum, p) => sum + p.amount, 0)
+                  const remaining = s.fee - paid
+                  return (
+                    <tr key={s.id} className="hover:bg-[#F8F9FC] transition-colors">
+                      <td className="px-4 py-3 text-[#1A2332] font-medium">{s.date}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-[#1A2332]">{patient?.firstName} {patient?.lastName}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7A94] text-xs">{s.type}</td>
+                      <td className="px-4 py-3 font-semibold text-[#2B3A5C]">S/ {s.fee}</td>
+                      <td className="px-4 py-3 text-emerald-600 font-medium">S/ {paid}</td>
+                      <td className="px-4 py-3 text-red-600 font-bold">S/ {remaining}</td>
+                      <td className="px-4 py-3">
+                        <button 
+                          onClick={() => openPayModal(s)}
+                          className="px-3 py-1.5 bg-[#E8481E] text-white text-xs font-semibold rounded-lg hover:bg-[#C93A14] transition-colors"
+                        >
+                          Pagar
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Form modal */}
-      {showForm && (
+      {/* Modal de pago */}
+      {showPayModal && selectedSession && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
-              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Registrar pago</h2>
-              <button onClick={() => setShowForm(false)}><X size={18} className="text-[#6B7A94]" /></button>
+              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Registrar pago
+              </h2>
+              <button onClick={() => setShowPayModal(false)}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
+            
             <div className="p-6 space-y-4">
+              {/* Paciente (no editable) */}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
-                <select value={form.patientId} onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
-                  {patients.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                  {getPatient(selectedSession.patientId)?.firstName} {getPatient(selectedSession.patientId)?.lastName}
+                </div>
+              </div>
+
+              {/* Sesión (no editable) */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Sesión</label>
+                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                  {selectedSession.date} · {selectedSession.startTime}–{selectedSession.endTime} · {selectedSession.type}
+                </div>
+              </div>
+
+              {/* Fecha de pago (automática, no editable) */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha de pago</label>
+                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                  {new Date().toLocaleDateString('es-PE')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Monto que debe (no editable) */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto que debe</label>
+                  <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-red-600 font-bold">
+                    S/ {selectedSession.fee - payments.filter(p => p.sessionId === selectedSession.id).reduce((a, b) => a + b.amount, 0)}
+                  </div>
+                </div>
+
+                {/* Monto recibido (editable) */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto recibido</label>
+                  <input 
+                    type="number" 
+                    value={payForm.amountReceived} 
+                    onChange={e => setPayForm(f => ({ ...f, amountReceived: +e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" 
+                  />
+                </div>
+              </div>
+
+              {/* Método de pago */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Método de pago</label>
+                <select 
+                  value={payForm.method} 
+                  onChange={e => setPayForm(f => ({ ...f, method: e.target.value as PaymentMethod }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                >
+                  {["Efectivo", "Transferencia", "Tarjeta", "Yape", "Plin"].map(m => (
+                    <option key={m}>{m}</option>
+                  ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha</label>
-                  <input type="date" value={form.date || ""} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto (S/)</label>
-                  <input type="number" value={form.amount || ""} onChange={e => setForm(f => ({ ...f, amount: +e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Tipo de pago</label>
-                  <select value={form.type || "Por sesión"} onChange={e => setForm(f => ({ ...f, type: e.target.value as Payment["type"] }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
-                    {["Por sesión", "Mensualidad", "Parcial"].map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Método de pago</label>
-                  <select value={form.method || "Efectivo"} onChange={e => setForm(f => ({ ...f, method: e.target.value as PaymentMethod }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
-                    {["Efectivo", "Transferencia", "Tarjeta", "Yape", "Plin"].map(m => <option key={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado</label>
-                  <select value={form.status || "Pagado"} onChange={e => setForm(f => ({ ...f, status: e.target.value as PaymentStatus }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
-                    {["Pagado", "Parcial", "Pendiente"].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Período (mensualidad)</label>
-                  <input value={form.period || ""} onChange={e => setForm(f => ({ ...f, period: e.target.value }))} placeholder="Ej: Julio 2026"
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
-                </div>
-              </div>
+
+              {/* Estado calculado automático */}
               <div>
-                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">N° de comprobante</label>
-                <input value={form.receiptNumber || ""} onChange={e => setForm(f => ({ ...f, receiptNumber: e.target.value }))} placeholder="Se genera automáticamente"
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado</label>
+                <div className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                  payForm.amountReceived >= selectedSession.fee 
+                    ? "bg-emerald-100 text-emerald-700" 
+                    : payForm.amountReceived > 0 
+                      ? "bg-amber-100 text-amber-700" 
+                      : "bg-red-100 text-red-700"
+                }`}>
+                  {payForm.amountReceived >= selectedSession.fee 
+                    ? "Pagado" 
+                    : payForm.amountReceived > 0 
+                      ? "Parcial" 
+                      : "Pendiente"}
+                </div>
+                <p className="text-[10px] text-[#6B7A94] mt-1">Se calcula automáticamente según el monto recibido</p>
               </div>
+
+              {/* Notas */}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Notas</label>
-                <textarea value={form.notes || ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] resize-none" />
+                <textarea 
+                  value={payForm.notes} 
+                  onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))} 
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] resize-none" 
+                />
               </div>
             </div>
+
             <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Registrar pago</button>
+              <button 
+                onClick={() => setShowPayModal(false)} 
+                className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handlePay} 
+                disabled={payForm.amountReceived <= 0}
+                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Registrar pago
+              </button>
             </div>
           </div>
         </div>

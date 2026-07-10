@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react"
-import { Search, Plus, X, TrendingUp, Brain, Target, ChevronDown } from "lucide-react"
-import { getClinicalRecords, createClinicalRecord } from "../lib/api/clinicalRecords"
+import { Search, Plus, X, TrendingUp, Brain, Target, ChevronDown, Calendar } from "lucide-react"
+import { getClinicalRecords, createClinicalRecord, getSessionsWithoutRecord } from "../lib/api/clinicalRecords"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
-import type { ClinicalRecord, Patient, Therapist } from "../types"
+import type { ClinicalRecord, Patient, Therapist, Session } from "../types"
 
 export default function ClinicalRecords() {
   const [records, setRecords] = useState<ClinicalRecord[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
+  const [sessionsWithoutRecord, setSessionsWithoutRecord] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedPatientId, setSelectedPatientId] = useState("")
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [selectedRecord, setSelectedRecord] = useState<ClinicalRecord | null>(null)
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [form, setForm] = useState<Partial<ClinicalRecord>>({})
 
   useEffect(() => {
@@ -39,10 +41,23 @@ export default function ClinicalRecords() {
     load()
   }, [])
 
+  // Cargar sesiones sin registro clínico cuando cambia el paciente seleccionado
+  useEffect(() => {
+    if (!selectedPatientId) return
+    async function loadSessions() {
+      try {
+        const sessions = await getSessionsWithoutRecord(selectedPatientId)
+        setSessionsWithoutRecord(sessions)
+      } catch (err) {
+        console.error("Error cargando sesiones sin registro:", err)
+      }
+    }
+    loadSessions()
+  }, [selectedPatientId, records]) // Se recarga cuando cambian los records también
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando historia clínica...</div>
   }
-
 
   const filteredPatients = patients.filter(p =>
     !search || `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase())
@@ -54,11 +69,14 @@ export default function ClinicalRecords() {
     .filter(r => r.patientId === selectedPatientId)
     .sort((a, b) => b.date.localeCompare(a.date))
 
-  const openNewRecord = () => {
+  // Abrir formulario para completar ficha de una sesión existente
+  const openRecordForSession = (session: Session) => {
+    setSelectedSession(session)
     setForm({
       patientId: selectedPatientId,
-      therapistId: patient?.therapistId || therapists[0]?.id || "",
-      date: new Date().toISOString().split("T")[0],
+      sessionId: session.id,
+      therapistId: session.therapistId,
+      date: session.date,
       sessionNumber: patientRecords.length + 1,
       objectives: "",
       observations: "",
@@ -76,6 +94,7 @@ export default function ClinicalRecords() {
     try {
       const created = await createClinicalRecord({
         patientId: form.patientId!,
+        sessionId: form.sessionId,
         therapistId: form.therapistId!,
         date: form.date!,
         sessionNumber: form.sessionNumber!,
@@ -89,6 +108,7 @@ export default function ClinicalRecords() {
       })
       setRecords(prev => [created, ...prev])
       setShowForm(false)
+      setSelectedSession(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar registro")
     }
@@ -131,7 +151,7 @@ export default function ClinicalRecords() {
             return (
               <button
                 key={p.id}
-                onClick={() => { setSelectedPatientId(p.id); setSelectedRecord(null) }}
+                onClick={() => { setSelectedPatientId(p.id); setSelectedRecord(null); setShowForm(false) }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-[#F2F4F8] ${
                   selectedPatientId === p.id ? "bg-[#FDF0EC]" : "hover:bg-[#F8F9FC]"
                 }`}
@@ -168,116 +188,170 @@ export default function ClinicalRecords() {
                 <p className="text-xs text-[#2B3A5C] mt-1 font-medium">{patient.diagnosis}</p>
               )}
             </div>
-            <button
-              onClick={openNewRecord}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors"
-            >
-              <Plus size={14} /> Nueva sesión
-            </button>
           </div>
         )}
 
         <div className="flex-1 flex overflow-hidden">
           {/* Timeline */}
           <div className="flex-1 overflow-y-auto p-5 space-y-3">
-            {patientRecords.length === 0 && (
-              <div className="text-center py-16 text-[#6B7A94]">
-                <Brain size={32} className="mx-auto mb-3 opacity-40" />
-                <p className="text-sm">No hay registros clínicos para este paciente.</p>
-                <button onClick={openNewRecord} className="mt-3 text-sm text-[#E8481E] font-medium hover:underline">
-                  Registrar primera sesión
-                </button>
+            
+            {/* Sesiones pendientes de ficha clínica */}
+            {sessionsWithoutRecord.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-xs font-bold text-[#E8481E] uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Calendar size={14} /> Sesiones pendientes de ficha clínica
+                </h3>
+                <div className="space-y-2">
+                  {sessionsWithoutRecord.map(session => {
+                    const t = therapists.find(th => th.id === session.therapistId)
+                    return (
+                      <button
+                        key={session.id}
+                        onClick={() => openRecordForSession(session)}
+                        className="w-full text-left bg-[#FDF0EC] border border-[#E8481E]/20 rounded-xl p-4 hover:shadow-md transition-all flex items-center justify-between"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-[#1A2332]">
+                            Sesión del {session.date} · {session.startTime} - {session.endTime}
+                          </p>
+                          <p className="text-xs text-[#6B7A94] mt-0.5">
+                            Terapeuta: {t?.firstName} {t?.lastName} · {session.type}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E8481E] text-white text-xs font-semibold rounded-lg">
+                          <Plus size={12} /> Completar ficha
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
-            {patientRecords.map(rec => {
-              const t = therapists.find(th => th.id === rec.therapistId)
-              return (
-                <button
-                  key={rec.id}
-                  onClick={() => setSelectedRecord(rec)}
-                  className={`w-full text-left bg-white rounded-xl border p-5 hover:shadow-md transition-all ${
-                    selectedRecord?.id === rec.id ? "border-[#E8481E] shadow-md" : "border-[#E2E7EF] shadow-sm"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <span className="text-xs font-bold text-[#E8481E] bg-[#FDF0EC] px-2 py-0.5 rounded-full">
-                        Sesión #{rec.sessionNumber}
-                      </span>
-                      <p className="text-sm font-semibold text-[#2B3A5C] mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                        {rec.date}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <p className="text-[10px] text-[#6B7A94] font-medium">Estado ánimo</p>
-                        <p className={`text-sm font-bold ${moodColor(rec.mood)}`}>{moodLabel(rec.mood)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-[#6B7A94] font-medium">Progreso</p>
-                        <p className="text-sm font-bold text-[#2B3A5C]">{rec.progress}%</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="w-full h-1.5 bg-[#F2F4F8] rounded-full mb-3">
-                    <div
-                      className="h-1.5 rounded-full transition-all"
-                      style={{ width: `${rec.progress}%`, background: rec.progress >= 70 ? "#059669" : rec.progress >= 40 ? "#D97706" : "#DC2626" }}
-                    />
-                  </div>
-                  <p className="text-sm text-[#6B7A94] line-clamp-2">{rec.observations}</p>
-                  <p className="text-xs text-[#9AA5BE] mt-2">
-                    {t?.firstName} {t?.lastName} · {t?.specialty}
-                  </p>
-                </button>
-              )
-            })}
+
+            {patientRecords.length === 0 && sessionsWithoutRecord.length === 0 && (
+              <div className="text-center py-16 text-[#6B7A94]">
+                <Brain size={32} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm">No hay registros clínicos ni sesiones pendientes para este paciente.</p>
+              </div>
+            )}
+
+            {patientRecords.length === 0 && sessionsWithoutRecord.length > 0 && (
+              <div className="text-center py-8 text-[#6B7A94]">
+                <p className="text-sm">Selecciona una sesión de arriba para completar su ficha clínica.</p>
+              </div>
+            )}
+
+            {/* Registros clínicos existentes */}
+            {patientRecords.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-[#2B3A5C] uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Brain size={14} /> Historial clínico
+                </h3>
+                <div className="space-y-3">
+                  {patientRecords.map(rec => {
+                    const t = therapists.find(th => th.id === rec.therapistId)
+                    return (
+                      <button
+                        key={rec.id}
+                        onClick={() => setSelectedRecord(rec)}
+                        className={`w-full text-left bg-white rounded-xl border p-5 hover:shadow-md transition-all ${
+                          selectedRecord?.id === rec.id ? "border-[#E8481E] shadow-md" : "border-[#E2E7EF] shadow-sm"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <span className="text-xs font-bold text-[#E8481E] bg-[#FDF0EC] px-2 py-0.5 rounded-full">
+                              Sesión #{rec.sessionNumber}
+                            </span>
+                            <p className="text-sm font-semibold text-[#2B3A5C] mt-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                              {rec.date}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-center">
+                              <p className="text-[10px] text-[#6B7A94] font-medium">Estado ánimo</p>
+                              <p className={`text-sm font-bold ${moodColor(rec.mood)}`}>{rec.mood}</p>
+                              <p className="text-[10px] text-[#6B7A94]">{moodLabel(rec.mood)}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-[10px] text-[#6B7A94] font-medium">Progreso</p>
+                              <p className="text-sm font-bold text-[#2B3A5C]">{rec.progress}%</p>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#6B7A94]">Terapeuta: {t?.firstName} {t?.lastName}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Record detail */}
+          {/* Detail panel */}
           {selectedRecord && (
-            <div className="w-80 bg-white border-l border-[#E2E7EF] overflow-y-auto">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
-                <h3 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <div className="w-80 bg-white border-l border-[#E2E7EF] p-5 overflow-y-auto shrink-0">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Sesión #{selectedRecord.sessionNumber}
                 </h3>
-                <button onClick={() => setSelectedRecord(null)} className="text-[#6B7A94] hover:text-[#1A2332]">
-                  <X size={15} />
-                </button>
+                <button onClick={() => setSelectedRecord(null)}><X size={16} className="text-[#6B7A94]" /></button>
               </div>
-              <div className="p-5 space-y-5">
+              <div className="space-y-5">
                 <Section icon={Target} title="Objetivos" content={selectedRecord.objectives} />
                 <Section icon={Brain} title="Observaciones" content={selectedRecord.observations} />
                 <Section icon={TrendingUp} title="Diagnóstico" content={selectedRecord.diagnosis} />
-                <Section icon={Target} title="Tratamiento" content={selectedRecord.treatment} />
+                <Section icon={TrendingUp} title="Tratamiento" content={selectedRecord.treatment} />
                 <Section icon={Target} title="Próximos pasos" content={selectedRecord.nextSteps} />
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#E2E7EF]">
+                  <div className="text-center p-3 bg-[#F2F4F8] rounded-lg">
+                    <p className="text-[10px] text-[#6B7A94] font-medium">Estado de ánimo</p>
+                    <p className={`text-xl font-bold ${moodColor(selectedRecord.mood)}`}>{selectedRecord.mood}</p>
+                    <p className="text-[10px] text-[#6B7A94]">{moodLabel(selectedRecord.mood)}</p>
+                  </div>
+                  <div className="text-center p-3 bg-[#F2F4F8] rounded-lg">
+                    <p className="text-[10px] text-[#6B7A94] font-medium">Progreso</p>
+                    <p className="text-xl font-bold text-[#2B3A5C]">{selectedRecord.progress}%</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Form modal */}
-      {showForm && (
+      {/* Form modal - completar ficha clínica de una sesión existente */}
+      {showForm && selectedSession && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
               <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Registrar sesión clínica
+                Completar ficha clínica
               </h2>
-              <button onClick={() => setShowForm(false)}><X size={18} className="text-[#6B7A94]" /></button>
+              <button onClick={() => { setShowForm(false); setSelectedSession(null) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
+            
+            {/* Info de la sesión (solo lectura) */}
+            <div className="px-6 py-3 bg-[#F2F4F8] border-b border-[#E2E7EF]">
+              <p className="text-xs text-[#6B7A94]">
+                <span className="font-semibold text-[#2B3A5C]">Sesión:</span> {selectedSession.date} · {selectedSession.startTime} - {selectedSession.endTime}
+              </p>
+              <p className="text-xs text-[#6B7A94] mt-0.5">
+                <span className="font-semibold text-[#2B3A5C]">Tipo:</span> {selectedSession.type}
+              </p>
+            </div>
+
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha</label>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha del registro</label>
                   <input type="date" value={form.date || ""} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">N° de sesión</label>
-                  <input type="number" value={form.sessionNumber || ""} onChange={e => setForm(f => ({ ...f, sessionNumber: +e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
+                  <input type="number" value={form.sessionNumber || ""} readOnly
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado de ánimo (1-5)</label>
@@ -314,8 +388,8 @@ export default function ClinicalRecords() {
               ))}
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Guardar registro</button>
+              <button onClick={() => { setShowForm(false); setSelectedSession(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Guardar ficha clínica</button>
             </div>
           </div>
         </div>

@@ -3,7 +3,8 @@ import { Plus, X, ChevronDown, Search } from "lucide-react"
 import { getSessions, createSession, updateSessionStatus } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
-import type { Session, SessionStatus, Patient, Therapist } from "../types"
+import { getServices } from "../lib/api/services"
+import type { Session, SessionStatus, Patient, Therapist, Service } from "../types"
 
 const statusColor: Record<SessionStatus, string> = {
   Realizada: "bg-emerald-100 text-emerald-700",
@@ -12,14 +13,26 @@ const statusColor: Record<SessionStatus, string> = {
   Reprogramada: "bg-blue-100 text-blue-700",
 }
 
+// Color por categoría de servicio
+function getServiceColor(number: number): string {
+  if (number <= 2) return "bg-blue-50 text-blue-700 border-blue-200"
+  if (number <= 3) return "bg-green-50 text-green-700 border-green-200"
+  if (number <= 5) return "bg-orange-50 text-orange-700 border-orange-200"
+  if (number <= 11) return "bg-purple-50 text-purple-700 border-purple-200"
+  if (number <= 14) return "bg-red-50 text-red-700 border-red-200"
+  return "bg-yellow-50 text-yellow-700 border-yellow-200"
+}
+
 export default function Sessions() {
   const [sessionList, setSessionList] = useState<Session[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
+  const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<SessionStatus | "Todos">("Todos")
+  const [serviceFilter, setServiceFilter] = useState<string>("Todos")
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<Partial<Session>>({
     date: new Date().toISOString().split("T")[0],
@@ -35,15 +48,23 @@ export default function Sessions() {
     async function load() {
       try {
         setLoading(true)
-        const [sessionsData, patientsData, therapistsData] = await Promise.all([
+        const [sessionsData, patientsData, therapistsData, servicesData] = await Promise.all([
           getSessions(),
           getPatients(),
           getTherapists(),
+          getServices(),
         ])
         setSessionList(sessionsData)
         setPatients(patientsData)
         setTherapists(therapistsData)
-        setForm(f => ({ ...f, patientId: patientsData[0]?.id, therapistId: therapistsData[0]?.id }))
+        setServices(servicesData)
+        setForm(f => ({
+          ...f,
+          patientId: patientsData[0]?.id,
+          therapistId: therapistsData[0]?.id,
+          serviceId: servicesData[0]?.id,
+          fee: servicesData[0]?.defaultFee || 120,
+        }))
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar datos")
       } finally {
@@ -55,14 +76,16 @@ export default function Sessions() {
 
   const getPatient = (id: string) => patients.find(p => p.id === id)
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
+  const getService = (id?: string) => services.find(s => s.id === id)
 
   const filtered = sessionList
     .filter(s => {
       const p = getPatient(s.patientId)
       const name = `${p?.firstName} ${p?.lastName}`.toLowerCase()
-      const matchSearch = !search || name.includes(search.toLowerCase()) || s.date.includes(search)
+      const matchSearch = !search || name.includes(search.toLowerCase()) || s.date.includes(search) || (s.service?.name.toLowerCase().includes(search.toLowerCase()) ?? false)
       const matchStatus = statusFilter === "Todos" || s.status === statusFilter
-      return matchSearch && matchStatus
+      const matchService = serviceFilter === "Todos" || s.serviceId === serviceFilter
+      return matchSearch && matchStatus && matchService
     })
     .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
 
@@ -71,6 +94,7 @@ export default function Sessions() {
       const created = await createSession({
         patientId: form.patientId!,
         therapistId: form.therapistId!,
+        serviceId: form.serviceId,
         date: form.date!,
         startTime: form.startTime!,
         endTime: form.endTime!,
@@ -126,6 +150,14 @@ export default function Sessions() {
               className="pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-44 bg-[#F2F4F8]" />
           </div>
           <div className="relative">
+            <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
+              className="appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
+              <option value="Todos">Todos los servicios</option>
+              {services.map(s => <option key={s.id} value={s.id}>{s.number}. {s.name}</option>)}
+            </select>
+            <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
+          </div>
+          <div className="relative">
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SessionStatus | "Todos")}
               className="appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
               {["Todos", "Realizada", "Pendiente", "Cancelada", "Reprogramada"].map(s => <option key={s}>{s}</option>)}
@@ -160,7 +192,7 @@ export default function Sessions() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#E2E7EF]">
-                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "Honorario", "Estado", ""].map(h => (
+                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Honorario", "Estado", ""].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -169,6 +201,7 @@ export default function Sessions() {
               {filtered.map(s => {
                 const p = getPatient(s.patientId)
                 const t = getTherapist(s.therapistId)
+                const svc = s.service
                 return (
                   <tr key={s.id} className="hover:bg-[#F8F9FC] transition-colors">
                     <td className="px-4 py-3 text-[#1A2332] font-medium">{s.date}</td>
@@ -184,6 +217,18 @@ export default function Sessions() {
                     </td>
                     <td className="px-4 py-3 text-[#6B7A94] text-xs">{t?.firstName} {t?.lastName}</td>
                     <td className="px-4 py-3 text-[#6B7A94]">{s.type}</td>
+                    <td className="px-4 py-3">
+                      {svc ? (
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border ${getServiceColor(svc.number)}`}>
+                          <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            {svc.number}
+                          </span>
+                          <span className="truncate max-w-[180px]">{svc.name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[#6B7A94] text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-[#2B3A5C]">S/ {s.fee}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
@@ -229,6 +274,23 @@ export default function Sessions() {
                 <select value={form.therapistId} onChange={e => setForm(f => ({ ...f, therapistId: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
                   {therapists.map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">N° Servicio</label>
+                <select
+                  value={form.serviceId || ""}
+                  onChange={e => {
+                    const svc = services.find(s => s.id === e.target.value)
+                    setForm(f => ({ ...f, serviceId: e.target.value, fee: svc?.defaultFee || f.fee }))
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                >
+                  {services.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.number}. {s.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">

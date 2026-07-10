@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
 import { getAppointments, createAppointment, updateAppointmentStatus } from "../lib/api/appointments"
-import { getPatients } from "../lib/api/patients"
+import { getPatients, createPatient } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
-import type { Appointment, AppointmentStatus, Patient, Therapist } from "../types"
+import { getServices } from "../lib/api/services"
+import { supabase } from "../lib/supabaseClient"
+import type { Appointment, AppointmentStatus, Patient, Therapist, Service, Gender } from "../types"
 
 const HOURS = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"]
 const DAYS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"]
@@ -24,45 +26,61 @@ function dateStr(d: Date) {
   return d.toISOString().split("T")[0]
 }
 
-const statusColor: Record<AppointmentStatus, string> = {
-  Confirmada: "bg-emerald-500",
-  Pendiente: "bg-amber-400",
-  Cancelada: "bg-red-400",
-  Reprogramada: "bg-blue-400",
+function generatePatientCode() {
+  return "P" + Math.floor(Math.random() * 90000 + 10000).toString()
 }
 
 export default function Agenda() {
+  const [today] = useState(new Date())
+  const [currentWeek, setCurrentWeek] = useState(new Date())
   const [apts, setApts] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
+  const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [base, setBase] = useState(new Date())
   const [showForm, setShowForm] = useState(false)
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
-  const [filterTherapist, setFilterTherapist] = useState("all")
   const [form, setForm] = useState<Partial<Appointment>>({
-    date: dateStr(new Date()),
+    patientId: "",
+    therapistId: "",
+    serviceId: "",
+    date: dateStr(today),
     startTime: "09:00",
     endTime: "10:00",
     type: "Individual",
-    status: "Confirmada",
+    status: "Pendiente",
     notes: "",
+  })
+
+  // Mini-formulario de paciente rápido
+  const [showQuickPatient, setShowQuickPatient] = useState(false)
+  const [quickPatient, setQuickPatient] = useState({
+    firstName: "",
+    lastName: "",
+    dni: "",
+    phone: "",
   })
 
   useEffect(() => {
     async function load() {
       try {
         setLoading(true)
-        const [aptsData, patientsData, therapistsData] = await Promise.all([
+        const [aptsData, patientsData, therapistsData, servicesData] = await Promise.all([
           getAppointments(),
           getPatients(),
           getTherapists(),
+          getServices(),
         ])
         setApts(aptsData)
         setPatients(patientsData)
         setTherapists(therapistsData)
-        setForm(f => ({ ...f, patientId: patientsData[0]?.id, therapistId: therapistsData[0]?.id }))
+        setServices(servicesData)
+        setForm(f => ({
+          ...f,
+          therapistId: therapistsData[0]?.id,
+          serviceId: servicesData[0]?.id,
+        }))
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar datos")
       } finally {
@@ -72,30 +90,46 @@ export default function Agenda() {
     load()
   }, [])
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando agenda...</div>
+  const week = getWeekDates(currentWeek)
+
+  const handleQuickPatient = async () => {
+    try {
+      const code = generatePatientCode()
+      const newPatient = await createPatient({
+        code,
+        firstName: quickPatient.firstName,
+        lastName: quickPatient.lastName,
+        age: 0,
+        gender: "Otro" as Gender,
+        dni: quickPatient.dni || "",
+        phone: quickPatient.phone || "",
+        email: "",
+        address: "",
+        emergencyContact: "",
+        emergencyPhone: "",
+        insurance: "",
+        therapistId: form.therapistId || therapists[0]?.id,
+        status: "Activo",
+        diagnosis: "",
+        notes: "",
+      })
+
+      const updatedPatients = await getPatients()
+      setPatients(updatedPatients)
+      setForm(f => ({ ...f, patientId: newPatient.id }))
+      setShowQuickPatient(false)
+      setQuickPatient({ firstName: "", lastName: "", dni: "", phone: "" })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al crear paciente")
+    }
   }
-
-  const week = getWeekDates(base)
-
-  const prevWeek = () => { const d = new Date(base); d.setDate(d.getDate() - 7); setBase(d) }
-  const nextWeek = () => { const d = new Date(base); d.setDate(d.getDate() + 7); setBase(d) }
-
-  const getPatient = (id: string) => patients.find(p => p.id === id)
-  const getTherapist = (id: string) => therapists.find(t => t.id === id)
-
-  const visibleApts = apts.filter(a =>
-    filterTherapist === "all" || a.therapistId === filterTherapist
-  )
-
-  const aptsForSlot = (date: string, hour: string) =>
-    visibleApts.filter(a => a.date === date && a.startTime === hour)
 
   const handleSave = async () => {
     try {
       const created = await createAppointment({
         patientId: form.patientId!,
         therapistId: form.therapistId!,
+        serviceId: form.serviceId,
         date: form.date!,
         startTime: form.startTime!,
         endTime: form.endTime!,
@@ -105,6 +139,7 @@ export default function Agenda() {
       })
       setApts(prev => [...prev, created])
       setShowForm(false)
+      setShowQuickPatient(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al agendar cita")
     }
@@ -120,38 +155,62 @@ export default function Agenda() {
     }
   }
 
+  const prevWeek = () => {
+    const d = new Date(currentWeek)
+    d.setDate(d.getDate() - 7)
+    setCurrentWeek(d)
+  }
+  const nextWeek = () => {
+    const d = new Date(currentWeek)
+    d.setDate(d.getDate() + 7)
+    setCurrentWeek(d)
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando agenda...</div>
+  }
+
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F2F4F8]">
+    <div className="flex flex-col h-full p-6 max-w-7xl mx-auto">
       {error && (
-        <div className="fixed top-4 right-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg z-50 max-w-sm">
+        <div className="fixed top-4 right-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg z-50">
           {error}
         </div>
       )}
-      {/* Toolbar */}
-      <div className="bg-white border-b border-[#E2E7EF] px-6 py-4 flex items-center justify-between">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Agenda</h1>
-          <p className="text-xs text-[#6B7A94] mt-0.5">
-            {DAYS[week[0].getDay()]} {week[0].getDate()} – {DAYS[week[6].getDay()]} {week[6].getDate()} de {MONTHS[week[0].getMonth()]} {week[0].getFullYear()}
+          <h1 className="text-2xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Agenda semanal
+          </h1>
+          <p className="text-sm text-[#6B7A94] mt-0.5">
+            {MONTHS[currentWeek.getMonth()]} {currentWeek.getFullYear()}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={filterTherapist} onChange={e => setFilterTherapist(e.target.value)}
-            className="appearance-none px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
-            <option value="all">Todos los terapeutas</option>
-            {therapists.map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
-          </select>
           <button onClick={prevWeek} className="p-2 border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8] transition-colors">
             <ChevronLeft size={16} className="text-[#6B7A94]" />
-          </button>
-          <button onClick={() => setBase(new Date())}
-            className="px-3 py-2 text-sm font-medium border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8] text-[#6B7A94] transition-colors">
-            Hoy
           </button>
           <button onClick={nextWeek} className="p-2 border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8] transition-colors">
             <ChevronRight size={16} className="text-[#6B7A94]" />
           </button>
-          <button onClick={() => setShowForm(true)}
+          <button onClick={() => {
+            setShowForm(true)
+            setShowQuickPatient(false)
+            setSelectedApt(null)
+            setForm({
+              patientId: "",
+              therapistId: therapists[0]?.id || "",
+              serviceId: services[0]?.id || "",
+              date: dateStr(today),
+              startTime: "09:00",
+              endTime: "10:00",
+              type: "Individual",
+              status: "Pendiente",
+              notes: "",
+            })
+          }}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors">
             <Plus size={14} /> Nueva cita
           </button>
@@ -168,14 +227,9 @@ export default function Agenda() {
               {week.map(d => {
                 const isToday = dateStr(d) === dateStr(new Date())
                 return (
-                  <div key={d.toISOString()} className={`text-center py-3 border-r border-[#E2E7EF] ${isToday ? "bg-[#FDF0EC]" : ""}`}>
-                    <p className={`text-xs font-semibold uppercase tracking-wide ${isToday ? "text-[#E8481E]" : "text-[#6B7A94]"}`}>
-                      {DAYS[d.getDay()]}
-                    </p>
-                    <p className={`text-lg font-bold mt-0.5 ${isToday ? "text-[#E8481E]" : "text-[#2B3A5C]"}`}
-                      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      {d.getDate()}
-                    </p>
+                  <div key={d.getDay()} className={`px-2 py-3 text-center border-r border-[#E2E7EF] ${isToday ? "bg-[#FDF0EC]" : ""}`}>
+                    <p className="text-xs font-medium text-[#6B7A94]">{DAYS[d.getDay()]}</p>
+                    <p className={`text-sm font-bold ${isToday ? "text-[#E8481E]" : "text-[#1A2332]"}`}>{d.getDate()}</p>
                   </div>
                 )
               })}
@@ -183,31 +237,30 @@ export default function Agenda() {
 
             {/* Time slots */}
             {HOURS.map(hour => (
-              <div key={hour} className="grid border-b border-[#E2E7EF]" style={{ gridTemplateColumns: "56px repeat(7, 1fr)", minHeight: 72 }}>
-                <div className="text-[10px] text-[#6B7A94] px-2 pt-1.5 border-r border-[#E2E7EF] font-medium shrink-0">
+              <div key={hour} className="grid border-b border-[#F2F4F8]" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
+                <div className="border-r border-[#E2E7EF] px-2 py-3 text-xs font-medium text-[#9AA5BE] text-right">
                   {hour}
                 </div>
                 {week.map(d => {
-                  const ds = dateStr(d)
-                  const dayApts = aptsForSlot(ds, hour)
-                  const isToday = ds === dateStr(new Date())
+                  const dayStr = dateStr(d)
+                  const dayApts = apts.filter(a => a.date === dayStr && a.startTime?.startsWith(hour))
                   return (
-                    <div key={ds} className={`border-r border-[#E2E7EF] p-1 ${isToday ? "bg-[#FDF8F6]" : "bg-white hover:bg-[#F8F9FC]"} transition-colors`}>
-                      {dayApts.map(apt => {
-                        const patient = getPatient(apt.patientId)
-                        const therapist = getTherapist(apt.therapistId)
+                    <div key={d.getDay() + hour} className="border-r border-[#E2E7EF] p-1 min-h-[64px] relative">
+                      {dayApts.map(a => {
+                        const p = patients.find(p => p.id === a.patientId)
+                        const t = therapists.find(t => t.id === a.therapistId)
                         return (
                           <button
-                            key={apt.id}
-                            onClick={() => setSelectedApt(apt)}
-                            className="w-full text-left rounded-lg p-1.5 mb-1 text-white text-[10px] font-semibold truncate transition-opacity hover:opacity-90"
-                            style={{ background: therapist?.color || "#E8481E" }}
+                            key={a.id}
+                            onClick={() => setSelectedApt(a)}
+                            className={`w-full text-left px-2 py-1.5 rounded-md mb-1 text-xs font-medium transition-colors ${
+                              a.status === "Confirmada" ? "bg-[#EEF1F8] text-[#2B3A5C] border border-[#2B3A5C]/10" :
+                              a.status === "Cancelada" ? "bg-red-50 text-red-700 border border-red-100" :
+                              "bg-[#FDF0EC] text-[#E8481E] border border-[#E8481E]/10"
+                            }`}
                           >
-                            <div className="flex items-center gap-1">
-                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor[apt.status]}`} />
-                              <span className="truncate">{patient?.firstName} {patient?.lastName?.[0]}.</span>
-                            </div>
-                            <p className="opacity-75 mt-0.5">{apt.startTime}–{apt.endTime}</p>
+                            <p className="font-semibold truncate">{p?.firstName} {p?.lastName}</p>
+                            <p className="text-[10px] opacity-75">{t?.firstName} {t?.lastName}</p>
                           </button>
                         )
                       })}
@@ -219,55 +272,35 @@ export default function Agenda() {
           </div>
         </div>
 
-        {/* Appointment detail */}
+        {/* Side panel - appointment detail */}
         {selectedApt && (
-          <div className="w-72 bg-white border-l border-[#E2E7EF] flex flex-col overflow-hidden shrink-0">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
-              <h3 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Detalle de cita</h3>
-              <button onClick={() => setSelectedApt(null)}><X size={15} className="text-[#6B7A94]" /></button>
+          <div className="w-80 border-l border-[#E2E7EF] bg-white p-5 overflow-auto shrink-0">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-[#2B3A5C] text-sm">Detalle de cita</h3>
+              <button onClick={() => setSelectedApt(null)}><X size={16} className="text-[#6B7A94]" /></button>
             </div>
-            <div className="p-5 flex-1 space-y-4">
-              {(() => {
-                const p = getPatient(selectedApt.patientId)
-                const t = getTherapist(selectedApt.therapistId)
-                return (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                        style={{ background: t?.color || "#E8481E" }}>
-                        {p?.firstName[0]}{p?.lastName[0]}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-[#1A2332] text-sm">{p?.firstName} {p?.lastName}</p>
-                        <p className="text-xs text-[#6B7A94]">{p?.code}</p>
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <Row label="Fecha" value={selectedApt.date} />
-                      <Row label="Horario" value={`${selectedApt.startTime} – ${selectedApt.endTime}`} />
-                      <Row label="Tipo" value={selectedApt.type} />
-                      <Row label="Terapeuta" value={`${t?.firstName} ${t?.lastName}`} />
-                      <Row label="Especialidad" value={t?.specialty || "—"} />
-                      {selectedApt.notes && <Row label="Notas" value={selectedApt.notes} />}
-                    </div>
-                    <div>
-                      <p className="text-xs text-[#6B7A94] font-semibold mb-2">Estado de la cita</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(["Confirmada", "Cancelada", "Reprogramada", "Pendiente"] as AppointmentStatus[]).map(s => (
-                          <button key={s} onClick={() => updateStatus(selectedApt.id, s)}
-                            className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                              selectedApt.status === s
-                                ? "bg-[#E8481E] text-white border-[#E8481E]"
-                                : "text-[#6B7A94] border-[#E2E7EF] hover:border-[#E8481E] hover:text-[#E8481E]"
-                            }`}>
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )
-              })()}
+            <div className="space-y-3">
+              <Row label="Paciente" value={`${patients.find(p => p.id === selectedApt.patientId)?.firstName || ""} ${patients.find(p => p.id === selectedApt.patientId)?.lastName || ""}`} />
+              <Row label="Terapeuta" value={`${therapists.find(t => t.id === selectedApt.therapistId)?.firstName || ""} ${therapists.find(t => t.id === selectedApt.therapistId)?.lastName || ""}`} />
+              <Row label="Fecha" value={selectedApt.date} />
+              <Row label="Hora" value={`${selectedApt.startTime} - ${selectedApt.endTime}`} />
+              <Row label="Tipo" value={selectedApt.type || ""} />
+              <Row label="Estado" value={selectedApt.status} />
+              <Row label="Notas" value={selectedApt.notes || "-"} />
+            </div>
+            <div className="flex gap-2 mt-5">
+              {selectedApt.status === "Pendiente" && (
+                <button onClick={() => updateStatus(selectedApt.id, "Confirmada")}
+                  className="flex-1 px-3 py-2 text-xs font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14]">
+                  Confirmar
+                </button>
+              )}
+              {selectedApt.status !== "Cancelada" && (
+                <button onClick={() => updateStatus(selectedApt.id, "Cancelada")}
+                  className="flex-1 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
+                  Cancelar
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -275,20 +308,97 @@ export default function Agenda() {
 
       {/* Form modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
-              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nueva cita</h2>
-              <button onClick={() => setShowForm(false)}><X size={18} className="text-[#6B7A94]" /></button>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#2B3A5C]">Nueva cita</h3>
+              <button onClick={() => { setShowForm(false); setShowQuickPatient(false) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
-            <div className="p-6 space-y-4">
+
+            <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
-                <select value={form.patientId} onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
+                <select 
+                  value={showQuickPatient ? "__new__" : (form.patientId || "")} 
+                  onChange={e => {
+                    if (e.target.value === "__new__") {
+                      setShowQuickPatient(true)
+                      setForm(f => ({ ...f, patientId: "" }))
+                    } else {
+                      setForm(f => ({ ...f, patientId: e.target.value }))
+                      setShowQuickPatient(false)
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                >
+                  <option value="">Seleccionar paciente...</option>
                   {patients.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                  <option value="__new__" className="text-[#E8481E] font-semibold">+ Nuevo paciente</option>
                 </select>
               </div>
+
+              {/* Mini-formulario de paciente rápido */}
+              {showQuickPatient && (
+                <div className="bg-[#FDF0EC] border border-[#E8481E]/20 rounded-lg p-4 space-y-3">
+                  <p className="text-xs font-semibold text-[#E8481E]">Registrar paciente rápido</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#6B7A94] mb-1">Nombre *</label>
+                      <input 
+                        value={quickPatient.firstName}
+                        onChange={e => setQuickPatient(p => ({ ...p, firstName: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                        placeholder="Nombre"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#6B7A94] mb-1">Apellido *</label>
+                      <input 
+                        value={quickPatient.lastName}
+                        onChange={e => setQuickPatient(p => ({ ...p, lastName: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                        placeholder="Apellido"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[#6B7A94] mb-1">DNI</label>
+                      <input 
+                        value={quickPatient.dni}
+                        onChange={e => setQuickPatient(p => ({ ...p, dni: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#6B7A94] mb-1">Teléfono</label>
+                      <input 
+                        value={quickPatient.phone}
+                        onChange={e => setQuickPatient(p => ({ ...p, phone: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleQuickPatient}
+                      disabled={!quickPatient.firstName || !quickPatient.lastName}
+                      className="px-4 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-50"
+                    >
+                      Guardar y seleccionar
+                    </button>
+                    <button 
+                      onClick={() => { setShowQuickPatient(false); setForm(f => ({ ...f, patientId: "" })) }}
+                      className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Terapeuta</label>
                 <select value={form.therapistId} onChange={e => setForm(f => ({ ...f, therapistId: e.target.value }))}
@@ -296,8 +406,18 @@ export default function Agenda() {
                   {therapists.map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName} · {t.specialty}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">N° Servicio</label>
+                <select
+                  value={form.serviceId || ""}
+                  onChange={e => setForm(f => ({ ...f, serviceId: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                >
+                  {services.map(s => <option key={s.id} value={s.id}>{s.number}. {s.name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-3">
+                <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha</label>
                   <input type="date" value={form.date || ""} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
@@ -312,22 +432,26 @@ export default function Agenda() {
                   <input type="time" value={form.endTime || ""} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Tipo</label>
-                  <select value={form.type || "Individual"} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
-                    {["Individual","Grupal","Familiar","Evaluación inicial"].map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Tipo</label>
+                <select value={form.type || "Individual"} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
+                  <option>Individual</option>
+                  <option>Pareja</option>
+                  <option>Familiar</option>
+                  <option>Grupal</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Notas</label>
                 <textarea value={form.notes || ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] resize-none" />
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] resize-none" placeholder="Opcional" />
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => { setShowForm(false); setShowQuickPatient(false) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
               <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Agendar cita</button>
             </div>
           </div>

@@ -37,9 +37,19 @@ export interface Therapist {
   color: string
 }
 
+export interface Service {
+  id: string
+  number: number
+  name: string
+  description?: string
+  defaultFee: number
+  createdAt: string
+}
+
 export interface ClinicalRecord {
   id: string
   patientId: string
+  sessionId?: string  
   date: string
   sessionNumber: number
   therapistId: string
@@ -56,6 +66,7 @@ export interface Session {
   id: string
   patientId: string
   therapistId: string
+  serviceId?: string
   date: string
   startTime: string
   endTime: string
@@ -63,32 +74,32 @@ export interface Session {
   status: SessionStatus
   notes: string
   fee: number
+  service?: Service
 }
 
 export interface Payment {
   id: string
   patientId: string
-  sessionId?: string
+  sessionId: string  
   date: string
   amount: number
-  type: "Por sesión" | "Mensualidad" | "Parcial"
   method: PaymentMethod
   status: PaymentStatus
-  period?: string
   notes: string
-  receiptNumber: string
 }
 
 export interface Appointment {
   id: string
   patientId: string
   therapistId: string
+  serviceId?: string
   date: string
   startTime: string
   endTime: string
   type: string
   status: AppointmentStatus
   notes: string
+  service?: Service
 }
 
 export interface AttendanceRecord {
