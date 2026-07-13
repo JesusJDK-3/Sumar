@@ -82,23 +82,21 @@ export async function getSessionsWithoutRecord(patientId: string): Promise<Sessi
 
   if (sessionsError) throw sessionsError
 
-  interface RawSession {
-    id: string
-    patient_id: string
-    therapist_id: string
-    service_id: string | null
-    date: string
-    start_time: string
-    end_time: string
-    type: string
-    status: string
-    notes: string
-    fee: number
-    created_at: string
-    patients?: { id: string; first_name: string; last_name: string }
-  }
-
-  return ((sessionsData || []) as RawSession[]).filter(s => !recordedSessionIds.has(s.id)) as unknown as Session[]
+  // Mapear snake_case a camelCase como hace sessions.ts
+  return (sessionsData || []).map((s: Record<string, unknown>) => ({
+    id: s.id as string,
+    patientId: s.patient_id as string,
+    therapistId: s.therapist_id as string,
+    serviceId: (s.service_id as string | null) ?? undefined,
+    date: s.date as string,
+    startTime: s.start_time as string,
+    endTime: s.end_time as string,
+    type: s.type as string,
+    status: s.status as Session['status'],
+    notes: s.notes as string,
+    fee: s.fee as number,
+    createdAt: s.created_at as string,
+  })).filter(s => !recordedSessionIds.has(s.id))
 }
 
 export async function createClinicalRecord(record: Omit<ClinicalRecord, 'id'>): Promise<ClinicalRecord> {
