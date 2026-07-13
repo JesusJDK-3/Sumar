@@ -9,7 +9,9 @@ import Agenda from "./components/Agenda"
 import Attendance from "./components/Attendance"
 import Reports from "./components/Reports"
 import Login from "./components/Login"
+import Users from "./components/Users"
 import { AuthProvider, useAuth } from "./lib/auth/AuthContext"
+
 
 function AppContent() {
   const { session, profile, loading, signOut } = useAuth()
@@ -34,6 +36,7 @@ function AppContent() {
       case "agenda": return <Agenda />
       case "attendance": return <Attendance />
       case "reports": return <Reports />
+      case "users": return <Users />
     }
   }
 

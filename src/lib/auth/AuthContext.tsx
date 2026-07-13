@@ -2,13 +2,63 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../supabaseClient'
 
-export type UserRole = 'admin' | 'psicologa' | 'terapeuta'
+export type UserRole = 'admin' | 'coordinacion' | 'psicologia'
+
+export interface UserPermissions {
+  dashboard: boolean
+  patients: boolean
+  clinical: boolean
+  sessions: boolean
+  payments: boolean
+  agenda: boolean
+  attendance: boolean
+  reports: boolean
+  users: boolean
+}
+
+// Permisos por defecto según rol
+const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
+  admin: {
+    dashboard: true,
+    patients: true,
+    clinical: true,
+    sessions: true,
+    payments: true,
+    agenda: true,
+    attendance: true,
+    reports: true,
+    users: true,
+  },
+  coordinacion: {
+    dashboard: true,
+    patients: true,
+    clinical: true,
+    sessions: true,
+    payments: true,
+    agenda: true,
+    attendance: true,
+    reports: true,
+    users: false,
+  },
+  psicologia: {
+    dashboard: false,
+    patients: false,
+    clinical: true,
+    sessions: false,
+    payments: false,
+    agenda: false,
+    attendance: false,
+    reports: false,
+    users: false,
+  },
+}
 
 interface Profile {
   id: string
   fullName: string
   role: UserRole
   therapistId: string | null
+  permissions: UserPermissions
 }
 
 interface AuthContextValue {
@@ -27,10 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function loadProfile(userId: string) {
+    async function loadProfile(userId: string) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, therapist_id')
+      .select('id, full_name, role, therapist_id, permissions')
       .eq('id', userId)
       .single()
 
@@ -38,13 +88,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       return
     }
-    setProfile({
-      id: data.id,
-      fullName: data.full_name,
-      role: data.role,
-      therapistId: data.therapist_id,
-    })
-  }
+    const savedPermissions = data.permissions as UserPermissions | null
+    const permissions = savedPermissions || DEFAULT_PERMISSIONS[data.role as UserRole]
+
+      setProfile({
+        id: data.id,
+        fullName: data.full_name,
+        role: data.role,
+        therapistId: data.therapist_id,
+        permissions,
+      })
+    }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

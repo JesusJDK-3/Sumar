@@ -133,7 +133,7 @@ export default function Attendance() {
           { label: "Tardanzas", value: tardanza, color: "#D97706", bg: "#FFFBEB" },
           { label: "Justificados", value: justificado, color: "#2563EB", bg: "#EFF6FF" },
           { label: "Ausentes", value: ausente, color: "#DC2626", bg: "#FEF2F2" },
-        ].map(({ label, value, color, bg }) => (
+        ].map(({ label, value, color}) => (
           <div key={label} className="bg-white rounded-xl border border-[#E2E7EF] p-4 shadow-sm">
             <p className="text-2xl font-bold" style={{ color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
             <p className="text-xs text-[#6B7A94] font-medium mt-0.5">{label}</p>
@@ -148,7 +148,7 @@ export default function Attendance() {
             className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
               tab === t ? "bg-[#2B3A5C] text-white" : "bg-white text-[#6B7A94] border border-[#E2E7EF] hover:bg-[#F2F4F8]"
             }`}>
-            {t === "patient" ? "Pacientes" : "Terapeutas"}
+            {t === "patient" ? "Pacientes" : "Psicología"}
           </button>
         ))}
       </div>
@@ -160,7 +160,7 @@ export default function Attendance() {
             <thead>
               <tr className="border-b border-[#E2E7EF]">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">
-                  {tab === "patient" ? "Paciente" : "Terapeuta"}
+                  {tab === "patient" ? "Paciente" : "Psicología"}
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">Hora llegada</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">Estado</th>

@@ -54,12 +54,15 @@ export default function Dashboard({ onNavigate }: Props) {
 
   const activePatients = patients.filter(p => p.status === "Activo").length
   const todaySessions = sessions.filter(s => s.date === today).length
-  const pendingPayments = payments.filter(p => p.status === "Pendiente" || p.status === "Parcial")
-  const pendingAmount = pendingPayments.reduce((acc, p) => {
-    if (p.status === "Parcial") return acc + p.amount
-    return acc + p.amount
+  const pendingAmount = sessions
+  .filter(s => s.status === "Realizada")
+  .reduce((sum, s) => {
+    const paid = payments
+      .filter(p => p.sessionId === s.id)
+      .reduce((a, p) => a + p.amount, 0)
+    return sum + Math.max(0, s.fee - paid)
   }, 0)
-  const monthIncome = payments.filter(p => p.status === "Pagado" && p.date.startsWith(currentMonth)).reduce((a, p) => a + p.amount, 0)
+  const monthIncome = payments.filter(p => (p.status === "Pagado" || p.status === "Parcial") && p.date.startsWith(currentMonth)).reduce((a, p) => a + p.amount, 0)
 
   const recentSessions = sessions.filter(s => s.status === "Realizada").slice(0, 5)
   const todayApts = appointments.filter(a => a.date === today).sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -69,9 +72,9 @@ export default function Dashboard({ onNavigate }: Props) {
 
   const stats = [
     { label: "Pacientes activos", value: activePatients, icon: Users, color: "#2B3A5C", bg: "#EEF1F8", page: "patients" as Page },
-    { label: "Sesiones hoy", value: todaySessions, icon: CalendarCheck, color: "#E8481E", bg: "#FDF0EC", page: "sessions" as Page },
+    { label: "Sesiones hoy", value: todaySessions, icon: CalendarCheck, color: "#f09731", bg: "#FDF0EC", page: "sessions" as Page },
     { label: "Ingresos del mes", value: `S/ ${monthIncome.toLocaleString()}`, icon: TrendingUp, color: "#059669", bg: "#ECFDF5", page: "payments" as Page },
-    { label: "Cuentas por cobrar", value: `S/ ${pendingAmount}`, icon: CreditCard, color: "#D97706", bg: "#FFFBEB", page: "payments" as Page },
+    { label: "Cuentas por cobrar", value: `S/ ${pendingAmount}`, icon: CreditCard, color: "#ee1e1e", bg: "#f7d6d5", page: "payments" as Page },
   ]
 
   const statusColor: Record<string, string> = {
@@ -214,26 +217,29 @@ export default function Dashboard({ onNavigate }: Props) {
             </button>
           </div>
           <div className="divide-y divide-[#F2F4F8]">
-            {pendingPayments.map(pay => {
-              const patient = getPatient(pay.patientId)
-              return (
-                <div key={pay.id} className="flex items-center gap-4 px-5 py-3">
-                  <AlertCircle size={16} className="text-amber-500 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#1A2332] truncate">
-                      {patient?.firstName} {patient?.lastName}
-                    </p>
-                    <p className="text-xs text-[#6B7A94]">{pay.type} · {pay.notes}</p>
+            {sessions
+              .filter(s => s.status === "Realizada")
+              .map(s => {
+                const patient = getPatient(s.patientId)
+                const paid = payments.filter(p => p.sessionId === s.id).reduce((a, p) => a + p.amount, 0)
+                const debt = s.fee - paid
+                if (debt <= 0) return null
+                return (
+                  <div key={s.id} className="flex items-center gap-4 px-5 py-3">
+                    <AlertCircle size={16} className="text-amber-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-[#1A2332] truncate">
+                        {patient?.firstName} {patient?.lastName}
+                      </p>
+                      <p className="text-xs text-[#6B7A94]">
+                        {s.date} · {s.type} · Pagado: S/ {paid} / S/ {s.fee}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-amber-600">S/ {debt}</span>
                   </div>
-                  <span className="text-sm font-bold text-amber-600">S/ {pay.amount}</span>
-                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                    pay.status === "Parcial" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                  }`}>
-                    {pay.status}
-                  </span>
-                </div>
-              )
-            })}
+                )
+              })
+            }
           </div>
         </div>
       </div>

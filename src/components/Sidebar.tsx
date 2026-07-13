@@ -7,9 +7,12 @@ import {
   ClipboardList,
   UserCheck,
   BarChart3,
+  Settings,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
+import { useAuth } from "../lib/auth/AuthContext"
+import type { UserPermissions } from "../lib/auth/AuthContext"
 
 export type Page =
   | "dashboard"
@@ -20,16 +23,23 @@ export type Page =
   | "agenda"
   | "attendance"
   | "reports"
+  | "users"
 
-const navItems: { id: Page; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
-  { id: "dashboard", label: "Inicio", icon: LayoutDashboard },
-  { id: "patients", label: "Pacientes", icon: Users },
-  { id: "clinical", label: "Historia Clínica", icon: FileText },
-  { id: "sessions", label: "Sesiones", icon: ClipboardList },
-  { id: "payments", label: "Pagos", icon: CreditCard },
-  { id: "agenda", label: "Agenda", icon: CalendarDays },
-  { id: "attendance", label: "Asistencia", icon: UserCheck },
-  { id: "reports", label: "Reportes", icon: BarChart3 },
+const allNavItems: {
+  id: Page
+  label: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  permKey: keyof UserPermissions
+}[] = [
+  { id: "dashboard", label: "Inicio", icon: LayoutDashboard, permKey: "dashboard" },
+  { id: "patients", label: "Pacientes", icon: Users, permKey: "patients" },
+  { id: "clinical", label: "Historia Clínica", icon: FileText, permKey: "clinical" },
+  { id: "sessions", label: "Sesiones", icon: ClipboardList, permKey: "sessions" },
+  { id: "payments", label: "Pagos", icon: CreditCard, permKey: "payments" },
+  { id: "agenda", label: "Agenda", icon: CalendarDays, permKey: "agenda" },
+  { id: "attendance", label: "Asistencia", icon: UserCheck, permKey: "attendance" },
+  { id: "reports", label: "Reportes", icon: BarChart3, permKey: "reports" },
+  { id: "users", label: "Usuarios", icon: Settings, permKey: "users" },
 ]
 
 interface Props {
@@ -43,6 +53,12 @@ interface Props {
 }
 
 export default function Sidebar({ current, onChange, collapsed, onToggle, userName, userRole, onSignOut }: Props) {
+  const { profile } = useAuth()
+
+  const visibleNavItems = allNavItems.filter(item =>
+    profile?.permissions?.[item.permKey] ?? false
+  )
+
   return (
     <aside
       style={{ width: collapsed ? 72 : 240, transition: "width 0.2s ease" }}
@@ -54,7 +70,6 @@ export default function Sidebar({ current, onChange, collapsed, onToggle, userNa
           src="/src/imports/sumar_icon.png"
           alt="Sumar"
           className="h-8 w-8 object-contain shrink-0 rounded"
-          
         />
         {!collapsed && (
           <div className="overflow-hidden">
@@ -70,7 +85,7 @@ export default function Sidebar({ current, onChange, collapsed, onToggle, userNa
 
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {navItems.map(({ id, label, icon: Icon }) => {
+        {visibleNavItems.map(({ id, label, icon: Icon }) => {
           const active = current === id
           return (
             <button

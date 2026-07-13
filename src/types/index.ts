@@ -5,6 +5,7 @@ export type PaymentMethod = "Efectivo" | "Transferencia" | "Tarjeta" | "Yape" | 
 export type PaymentStatus = "Pagado" | "Parcial" | "Pendiente"
 export type AppointmentStatus = "Confirmada" | "Cancelada" | "Reprogramada" | "Pendiente"
 export type AttendanceStatus = "Presente" | "Ausente" | "Tardanza" | "Justificado"
+export type UserRole = 'admin' | 'coordinacion' | 'psicologia'
 
 export interface Patient {
   id: string
@@ -25,6 +26,26 @@ export interface Patient {
   registeredAt: string
   diagnosis: string
   notes: string
+}
+
+export interface UserPermissions {
+  dashboard: boolean
+  patients: boolean
+  clinical: boolean
+  sessions: boolean
+  payments: boolean
+  agenda: boolean
+  attendance: boolean
+  reports: boolean
+  users: boolean // solo admin
+}
+
+export interface Profile {
+  id: string
+  fullName: string
+  role: UserRole
+  therapistId: string | null
+  permissions: UserPermissions
 }
 
 export interface Therapist {

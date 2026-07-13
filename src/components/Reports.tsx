@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { TrendingUp, Users, CalendarCheck, CreditCard, Activity, Award } from "lucide-react"
+import { TrendingUp, Users, CalendarCheck, Activity, Award } from "lucide-react"
 import { getPatients } from "../lib/api/patients"
 import { getSessions } from "../lib/api/sessions"
 import { getPayments } from "../lib/api/payments"
@@ -28,7 +28,7 @@ function last6MonthsData(sessions: Session[], payments: Payment[]) {
   }
   return months.map(({ key, month }) => ({
     month,
-    ingresos: payments.filter(p => p.status === "Pagado" && p.date.startsWith(key)).reduce((a, p) => a + p.amount, 0),
+    ingresos: payments.filter(p => (p.status === "Pagado" || p.status === "Parcial") && p.date.startsWith(key)).reduce((a, p) => a + p.amount, 0),
     sesiones: sessions.filter(s => s.status === "Realizada" && s.date.startsWith(key)).length,
   }))
 }
@@ -78,8 +78,13 @@ export default function Reports() {
   const cancelledSessions = sessions.filter(s => s.status === "Cancelada").length
   const attendanceRate = totalSessions ? Math.round((completedSessions / totalSessions) * 100) : 0
 
-  const totalIncome = payments.filter(p => p.status === "Pagado").reduce((a, p) => a + p.amount, 0)
-  const pending = payments.filter(p => p.status !== "Pagado").reduce((a, p) => a + p.amount, 0)
+  const totalIncome = payments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((a, p) => a + p.amount, 0)
+  const pending = sessions
+    .filter(s => s.status === "Realizada")
+    .reduce((sum, s) => {
+      const paid = payments.filter(p => p.sessionId === s.id).reduce((a, p) => a + p.amount, 0)
+      return sum + Math.max(0, s.fee - paid)
+    }, 0)
 
   const patientByStatus = [
     { name: "Activos", value: activePatients, color: GREEN },
@@ -169,7 +174,7 @@ export default function Reports() {
               <YAxis tick={{ fontSize: 11, fill: "#6B7A94" }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ border: "1px solid #E2E7EF", borderRadius: 8, fontSize: 12 }}
-                formatter={(value) => [`S/ ${Number(value).toLocaleString()}`, "Ingresos"]}
+                formatter={(value) => [`S/ ${Number(value)}`, ""]}
               />
               <Area type="monotone" dataKey="ingresos" stroke={ORANGE} strokeWidth={2} fill="url(#incomeGrad)" dot={{ fill: ORANGE, r: 3 }} />
             </AreaChart>
@@ -203,47 +208,56 @@ export default function Reports() {
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={patientByStatus} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
-                {patientByStatus.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
+                {patientByStatus.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
               <Tooltip contentStyle={{ border: "1px solid #E2E7EF", borderRadius: 8, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 mt-3 justify-center">
-            {patientByStatus.map(s => (
-              <div key={s.name} className="flex items-center gap-1.5 text-xs text-[#6B7A94]">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
-                {s.name} ({s.value})
+          <div className="space-y-1.5 mt-2">
+            {patientByStatus.map(({ name, value, color }) => (
+              <div key={name} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                  <span className="text-xs text-[#6B7A94]">{name}</span>
+                </div>
+                <span className="text-xs font-bold text-[#1A2332]">{value}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Sessions by therapist bar */}
+        {/* Sessions by therapist */}
         <div className="bg-white rounded-xl border border-[#E2E7EF] p-5 shadow-sm">
           <h3 className="font-semibold text-[#2B3A5C] text-sm mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             Sesiones por terapeuta
           </h3>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={sessionsByTherapist} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F2F4F8" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: "#6B7A94" }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6B7A94" }} axisLine={false} tickLine={false} width={90} />
+              <XAxis type="number" tick={{ fontSize: 10, fill: "#6B7A94" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#6B7A94" }} axisLine={false} tickLine={false} width={80} />
               <Tooltip contentStyle={{ border: "1px solid #E2E7EF", borderRadius: 8, fontSize: 12 }} />
               <Bar dataKey="sesiones" radius={[0,4,4,0]}>
-                {sessionsByTherapist.map((entry, i) => (
-                  <Cell key={i} fill={entry.color || NAVY} />
-                ))}
+                {sessionsByTherapist.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <div className="space-y-1.5 mt-3">
+            {sessionsByTherapist.map(({ name, sesiones, color }) => (
+              <div key={name} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                  <span className="text-xs text-[#6B7A94]">{name}</span>
+                </div>
+                <span className="text-xs font-bold text-[#1A2332]">{sesiones} ses.</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Payment methods pie */}
+        {/* Payment method */}
         <div className="bg-white rounded-xl border border-[#E2E7EF] p-5 shadow-sm">
           <h3 className="font-semibold text-[#2B3A5C] text-sm mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Métodos de pago
+            Ingresos por método de pago
           </h3>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
@@ -256,56 +270,62 @@ export default function Reports() {
                 formatter={(value) => [`S/ ${Number(value)}`, ""]} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 mt-3 justify-center">
-            {paymentByMethod.map(s => (
-              <div key={s.name} className="flex items-center gap-1.5 text-xs text-[#6B7A94]">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: methodColors[s.name] || "#94A3B8" }} />
-                {s.name} ({s.value})
+          <div className="space-y-1.5 mt-2">
+            {paymentByMethod.map(({ name, value }) => (
+              <div key={name} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: methodColors[name] || "#94A3B8" }} />
+                  <span className="text-xs text-[#6B7A94]">{name}</span>
+                </div>
+                <span className="text-xs font-bold text-[#1A2332]">S/ {value}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Attendance table */}
+      {/* Top patients table */}
       <div className="bg-white rounded-xl border border-[#E2E7EF] p-5 shadow-sm">
-        <h3 className="font-semibold text-[#2B3A5C] text-sm mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          Asistencia por terapeuta
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E2E7EF]">
-                <th className="text-left text-[#6B7A94] font-medium py-2 px-3">Terapeuta</th>
-                <th className="text-center text-[#6B7A94] font-medium py-2 px-3">Sesiones</th>
-                <th className="text-center text-[#6B7A94] font-medium py-2 px-3">Presente</th>
-                <th className="text-center text-[#6B7A94] font-medium py-2 px-3">Ausente</th>
-                <th className="text-center text-[#6B7A94] font-medium py-2 px-3">Tasa</th>
-              </tr>
-            </thead>
-            <tbody>
-              {therapists.map(t => {
-                const tSessions = sessions.filter(s => s.therapistId === t.id && s.status === "Realizada").length
-                const tPresent = attendanceRecords.filter(r => r.entityId === t.id && r.entityType === "therapist" && r.status === "Presente").length
-                const tAbsent = attendanceRecords.filter(r => r.entityId === t.id && r.entityType === "therapist" && r.status === "Ausente").length
-                const rate = tSessions ? Math.round((tPresent / tSessions) * 100) : 0
-                return (
-                  <tr key={t.id} className="border-b border-[#F2F4F8] last:border-0">
-                    <td className="py-2 px-3 text-[#1A2332] font-medium">{t.firstName} {t.lastName}</td>
-                    <td className="py-2 px-3 text-center text-[#6B7A94]">{tSessions}</td>
-                    <td className="py-2 px-3 text-center text-[#059669]">{tPresent}</td>
-                    <td className="py-2 px-3 text-center text-[#DC2626]">{tAbsent}</td>
-                    <td className="py-2 px-3 text-center">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${rate >= 90 ? "bg-green-50 text-green-700" : rate >= 70 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-                        {rate}%
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-2 mb-4">
+          <Award size={16} className="text-[#E8481E]" />
+          <h3 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Resumen por paciente
+          </h3>
         </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[#E2E7EF]">
+              {["Paciente", "Estado", "Sesiones realizadas", "Terapeuta", "Diagnóstico"].map(h => (
+                <th key={h} className="text-left pb-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#F2F4F8]">
+            {patients.filter(p => p.status === "Activo").map(p => {
+              const t = therapists.find(th => th.id === p.therapistId)
+              const sesCount = sessions.filter(s => s.patientId === p.id && s.status === "Realizada").length
+              return (
+                <tr key={p.id} className="hover:bg-[#F8F9FC] transition-colors">
+                  <td className="py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                        style={{ background: t?.color || ORANGE }}>
+                        {p.firstName[0]}{p.lastName[0]}
+                      </div>
+                      <span className="font-semibold text-[#1A2332]">{p.firstName} {p.lastName}</span>
+                    </div>
+                  </td>
+                  <td className="py-3">
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{p.status}</span>
+                  </td>
+                  <td className="py-3 font-bold text-[#2B3A5C]">{sesCount}</td>
+                  <td className="py-3 text-xs text-[#6B7A94]">{t?.firstName} {t?.lastName}</td>
+                  <td className="py-3 text-xs text-[#6B7A94] max-w-[220px] truncate">{p.diagnosis || "—"}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

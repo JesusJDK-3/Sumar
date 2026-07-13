@@ -76,7 +76,6 @@ export default function Sessions() {
 
   const getPatient = (id: string) => patients.find(p => p.id === id)
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
-  const getService = (id?: string) => services.find(s => s.id === id)
 
   const filtered = sessionList
     .filter(s => {
@@ -141,7 +140,7 @@ export default function Sessions() {
       <div className="bg-white border-b border-[#E2E7EF] px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Sesiones</h1>
-          <p className="text-xs text-[#6B7A94] mt-0.5">{stats.realizadas} realizadas · {stats.pendientes} pendientes · {stats.canceladas} canceladas</p>
+          
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -178,7 +177,7 @@ export default function Sessions() {
           { label: "Realizadas", value: stats.realizadas, color: "#059669", bg: "#ECFDF5" },
           { label: "Pendientes", value: stats.pendientes, color: "#D97706", bg: "#FFFBEB" },
           { label: "Canceladas", value: stats.canceladas, color: "#DC2626", bg: "#FEF2F2" },
-        ].map(({ label, value, color, bg }) => (
+        ].map(({ label, value, color}) => (
           <div key={label} className="bg-white rounded-xl border border-[#E2E7EF] p-4 shadow-sm">
             <p className="text-2xl font-bold" style={{ color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
             <p className="text-xs text-[#6B7A94] font-medium mt-0.5">{label}</p>
@@ -192,7 +191,7 @@ export default function Sessions() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#E2E7EF]">
-                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Honorario", "Estado", ""].map(h => (
+                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Monto", "Estado", ""].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -300,7 +299,7 @@ export default function Sessions() {
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Honorario (S/)</label>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto (S/)</label>
                   <input type="number" value={form.fee || ""} onChange={e => setForm(f => ({ ...f, fee: +e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
                 </div>
