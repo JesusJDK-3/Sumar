@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Users, Plus, X } from "lucide-react"
+import { Plus, X, Pencil } from "lucide-react"
 import { supabase } from "../lib/supabaseClient"
 import { useAuth } from "../lib/auth/AuthContext"
 import type { UserPermissions, UserRole } from "../lib/auth/AuthContext"
@@ -54,8 +54,16 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [createForm, setCreateForm] = useState({
+    email: "",
+    password: "",
+    fullName: "",
+    role: "psicologia" as UserRole,
+  })
+  const [editForm, setEditForm] = useState({
+    id: "",
     email: "",
     password: "",
     fullName: "",
@@ -70,18 +78,16 @@ export default function UsersPage() {
     try {
       setLoading(true)
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, role, permissions, created_at')
-        .order('created_at', { ascending: false })
+    .from('profiles_with_email')
+    .select('id, full_name, role, permissions, created_at, email')
+    .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      // Get emails from auth.users via RPC or admin API
-      // For now, we'll show what we have
       setUsers((data || []).map(u => ({
         id: u.id,
         fullName: u.full_name,
-        email: "", // would need admin API
+        email: u.email || "",
         role: u.role,
         permissions: u.permissions || DEFAULT_PERMISSIONS[u.role as UserRole],
         createdAt: u.created_at,
@@ -95,31 +101,61 @@ export default function UsersPage() {
 
   async function createUser() {
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: createForm.email,
-        password: createForm.password,
-      })
-
-      if (authError || !authData.user) throw authError || new Error("No se pudo crear usuario")
-
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          full_name: createForm.fullName,
+      setLoading(true)
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: createForm.email,
+          password: createForm.password,
+          fullName: createForm.fullName,
           role: createForm.role,
           permissions: DEFAULT_PERMISSIONS[createForm.role],
-        })
+        },
+      })
 
-      if (profileError) throw profileError
+      if (error || !data?.success) throw new Error(error?.message || 'Error al crear usuario')
 
       setShowCreate(false)
       setCreateForm({ email: "", password: "", fullName: "", role: "psicologia" })
       loadUsers()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear usuario")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function updateUser() {
+    try {
+      setLoading(true)
+      const updates: Record<string, unknown> = {
+        full_name: editForm.fullName,
+        role: editForm.role,
+      }
+      
+      // Only update password if provided
+      if (editForm.password) {
+        const { error: pwdError } = await supabase.auth.admin.updateUserById(
+          editForm.id,
+          { password: editForm.password }
+        )
+        if (pwdError) throw pwdError
+      }
+
+      // Update profile
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', editForm.id)
+
+      if (error) throw error
+
+      setShowEdit(false)
+      setEditForm({ id: "", email: "", password: "", fullName: "", role: "psicologia" })
+      loadUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar usuario")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -136,6 +172,17 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar permisos")
     }
+  }
+
+  function openEdit(user: UserProfile) {
+    setEditForm({
+      id: user.id,
+      email: user.email,
+      password: "",
+      fullName: user.fullName,
+      role: user.role,
+    })
+    setShowEdit(true)
   }
 
   if (loading) return <div className="flex items-center justify-center h-full text-[#6B7A94]">Cargando...</div>
@@ -197,12 +244,21 @@ export default function UsersPage() {
                   </div>
                 </td>
                 <td className="py-3 px-4 text-right">
-                  <button
-                    onClick={() => setSelectedUser(user)}
-                    className="text-xs text-[#E8481E] font-medium hover:underline"
-                  >
-                    Editar permisos
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => openEdit(user)}
+                      className="text-xs text-[#6B7A94] hover:text-[#2B3A5C] font-medium"
+                      title="Editar usuario"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => setSelectedUser(user)}
+                      className="text-xs text-[#E8481E] font-medium hover:underline"
+                    >
+                      Editar permisos
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -259,7 +315,63 @@ export default function UsersPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg">Cancelar</button>
-              <button onClick={createUser} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14]">Crear usuario</button>
+              <button onClick={createUser} disabled={loading} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] disabled:opacity-50">Crear usuario</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit user modal */}
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-[#2B3A5C]">Editar usuario</h2>
+              <button onClick={() => setShowEdit(false)}><X size={18} className="text-[#6B7A94]" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Nombre completo</label>
+                <input
+                  value={editForm.fullName}
+                  onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Correo (solo lectura)</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  readOnly
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Nueva contraseña (dejar vacío para no cambiar)</label>
+                <input
+                  type="password"
+                  value={editForm.password}
+                  onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="••••••••"
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Rol</label>
+                <select
+                  value={editForm.role}
+                  onChange={e => setEditForm(f => ({ ...f, role: e.target.value as UserRole }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                >
+                  <option value="coordinacion">Coordinación</option>
+                  <option value="psicologia">Psicología</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg">Cancelar</button>
+              <button onClick={updateUser} disabled={loading} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] disabled:opacity-50">Guardar cambios</button>
             </div>
           </div>
         </div>
