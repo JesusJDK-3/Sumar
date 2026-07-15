@@ -40,6 +40,12 @@ const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
   },
 }
 
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "admin", label: "Administrador" },
+  { value: "coordinacion", label: "Coordinación" },
+  { value: "psicologia", label: "Psicología" },
+]
+
 export default function UsersPage() {
   const { profile: currentUser } = useAuth()
   if (currentUser?.role !== 'admin') {
@@ -49,7 +55,7 @@ export default function UsersPage() {
       </div>
     )
   }
-  
+
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +71,6 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState({
     id: "",
     email: "",
-    password: "",
     fullName: "",
     role: "psicologia" as UserRole,
   })
@@ -78,9 +83,9 @@ export default function UsersPage() {
     try {
       setLoading(true)
       const { data, error } = await supabase
-    .from('profiles_with_email')
-    .select('id, full_name, role, permissions, created_at, email')
-    .order('created_at', { ascending: false })
+        .from('profiles_with_email')
+        .select('id, full_name, role, permissions, created_at, email')
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
@@ -131,17 +136,7 @@ export default function UsersPage() {
         full_name: editForm.fullName,
         role: editForm.role,
       }
-      
-      // Only update password if provided
-      if (editForm.password) {
-        const { error: pwdError } = await supabase.auth.admin.updateUserById(
-          editForm.id,
-          { password: editForm.password }
-        )
-        if (pwdError) throw pwdError
-      }
 
-      // Update profile
       const { error } = await supabase
         .from('profiles')
         .update(updates)
@@ -150,7 +145,7 @@ export default function UsersPage() {
       if (error) throw error
 
       setShowEdit(false)
-      setEditForm({ id: "", email: "", password: "", fullName: "", role: "psicologia" })
+      setEditForm({ id: "", email: "", fullName: "", role: "psicologia" })
       loadUsers()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar usuario")
@@ -178,14 +173,13 @@ export default function UsersPage() {
     setEditForm({
       id: user.id,
       email: user.email,
-      password: "",
       fullName: user.fullName,
       role: user.role,
     })
     setShowEdit(true)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[#6B7A94]">Cargando...</div>
+  if (loading && users.length === 0) return <div className="flex items-center justify-center h-full text-[#6B7A94]">Cargando...</div>
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -224,6 +218,7 @@ export default function UsersPage() {
               <tr key={user.id} className="border-b border-[#F2F4F8] hover:bg-[#F8F9FC]">
                 <td className="py-3 px-4">
                   <p className="font-semibold text-[#1A2332]">{user.fullName}</p>
+                  <p className="text-xs text-[#6B7A94]">{user.email}</p>
                 </td>
                 <td className="py-3 px-4">
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -231,7 +226,7 @@ export default function UsersPage() {
                     user.role === 'coordinacion' ? 'bg-blue-100 text-blue-700' :
                     'bg-emerald-100 text-emerald-700'
                   }`}>
-                    {user.role}
+                    {ROLE_OPTIONS.find(r => r.value === user.role)?.label || user.role}
                   </span>
                 </td>
                 <td className="py-3 px-4">
@@ -308,8 +303,9 @@ export default function UsersPage() {
                   onChange={e => setCreateForm(f => ({ ...f, role: e.target.value as UserRole }))}
                   className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
                 >
-                  <option value="coordinacion">Coordinación</option>
-                  <option value="psicologia">Psicología</option>
+                  {ROLE_OPTIONS.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -321,7 +317,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Edit user modal */}
+      {/* Edit user modal — solo nombre y rol */}
       {showEdit && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
@@ -339,22 +335,12 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Correo (solo lectura)</label>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Correo</label>
                 <input
                   type="email"
                   value={editForm.email}
                   readOnly
                   className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Nueva contraseña (dejar vacío para no cambiar)</label>
-                <input
-                  type="password"
-                  value={editForm.password}
-                  onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
                 />
               </div>
               <div>
@@ -364,8 +350,9 @@ export default function UsersPage() {
                   onChange={e => setEditForm(f => ({ ...f, role: e.target.value as UserRole }))}
                   className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
                 >
-                  <option value="coordinacion">Coordinación</option>
-                  <option value="psicologia">Psicología</option>
+                  {ROLE_OPTIONS.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
