@@ -67,7 +67,7 @@ export default function Sidebar({ current, onChange, collapsed, onToggle, userNa
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-white/10">
         <img
-          src="/sumar_icon.png"
+          src="/src/imports/sumar_icon.png"
           alt="Sumar"
           className="h-8 w-8 object-contain shrink-0 rounded"
         />
