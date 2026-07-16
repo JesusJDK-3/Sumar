@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { useAuth } from "../lib/auth/AuthContext"
 import { Heart, Shield, Users } from "lucide-react"
-import sumarfondo from "../imports/sumar_fondo.jpg"; // ajusta la ruta
+import sumarfondo from "../imports/sumar_fondo.jpg"; 
+import sumarIcon from "../imports/sumar_icon.png";
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -36,8 +37,8 @@ export default function Login() {
         {/* Top content */}
         <div className="relative z-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-[#E8481E] rounded-xl flex items-center justify-center">
-              <Heart size={20} className="text-white" fill="white" />
+            <div className="w-10 h-10 bg-[#E8481E] rounded-xl flex items-center justify-center p-1.5">
+              <img src={sumarIcon} alt="Sumar" className="w-full h-full object-contain" />
             </div>
             <span className="text-white font-bold text-xl tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Sumar
