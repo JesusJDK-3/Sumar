@@ -37,7 +37,7 @@ export default function Login() {
         {/* Top content */}
         <div className="relative z-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center p-1.5">
+            <div className="w-14 h-14 rounded-xl flex items-center justify-center p-1.5">
               <img src={sumarIcon} alt="Sumar" className="w-full h-full object-contain" />
             </div>
             <span className="text-white font-bold text-xl tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
