@@ -84,11 +84,13 @@ export interface ClinicalRecord {
   progress: number
 }
 
+
 export interface Session {
   id: string
   patientId: string
   therapistId: string
   serviceId?: string
+  packageId?: string // ← NUEVO: si viene de un paquete
   date: string
   startTime: string
   endTime: string

@@ -23,6 +23,7 @@ interface ServiceRow {
   name: string
   description: string | null
   default_fee: number
+  session_count?: number // ← NUEVO
 }
 
 function rowToService(row: ServiceRow): Service {
@@ -32,7 +33,8 @@ function rowToService(row: ServiceRow): Service {
     name: row.name,
     description: row.description || undefined,
     defaultFee: row.default_fee,
-    createdAt: '', // no usamos en lista
+    sessionCount: row.session_count ?? 1, // ← NUEVO
+    createdAt: '',
   }
 }
 
@@ -67,6 +69,40 @@ function sessionToRow(s: Partial<Session> & { appointmentId?: string }) {
     notes: s.notes,
     fee: s.fee,
   }
+}
+
+export async function createSessionsFromPackage(params: {
+  patientId: string
+  therapistId: string
+  serviceId: string
+  packageId: string
+  count: number
+  baseDate: string
+  startTime: string
+  endTime: string
+  type: string
+}): Promise<Session[]> {
+  const sessions = Array.from({ length: params.count }, (_, i) => ({
+    patient_id: params.patientId,
+    therapist_id: params.therapistId,
+    service_id: params.serviceId,
+    package_id: params.packageId,
+    date: params.baseDate, // Aquí podrías calcular fechas semanales
+    start_time: params.startTime,
+    end_time: params.endTime,
+    type: params.type,
+    status: 'Pendiente',
+    notes: `Sesión ${i + 1} de ${params.count} del paquete`,
+    fee: 0,
+  }))
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .insert(sessions)
+    .select('*, services!left(*)')
+
+  if (error) throw error
+  return (data as SessionRow[]).map(rowToSession)
 }
 
 export async function getSessions(): Promise<Session[]> {
