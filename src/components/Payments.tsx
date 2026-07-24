@@ -22,6 +22,13 @@ const statusColor = {
   Pendiente: "bg-red-100 text-red-700",
 }
 
+const defaultPayForm = {
+  amountReceived: 0,
+  method: "Efectivo" as PaymentMethod,
+  date: new Date().toISOString().split('T')[0],
+  notes: "",
+}
+
 export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [pendingSessions, setPendingSessions] = useState<Session[]>([])
@@ -35,11 +42,7 @@ export default function Payments() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
 
   // Form de pago
-  const [payForm, setPayForm] = useState({
-    amountReceived: 0,
-    method: "Efectivo" as PaymentMethod,
-    notes: "",
-  })
+  const [payForm, setPayForm] = useState(defaultPayForm)
 
   useEffect(() => {
     loadData()
@@ -93,15 +96,16 @@ export default function Payments() {
     if (!selectedSession) return
     try {
       await createPayment({
-        sessionId: selectedSession.id,
-        patientId: selectedSession.patientId,
-        amountReceived: payForm.amountReceived,
-        method: payForm.method,
-        notes: payForm.notes,
-      })
+      sessionId: selectedSession.id,
+      patientId: selectedSession.patientId,
+      amountReceived: payForm.amountReceived,
+      method: payForm.method,
+      date: payForm.date,          // ← NUEVO
+      notes: payForm.notes,
+    })
       setShowPayModal(false)
       setSelectedSession(null)
-      setPayForm({ amountReceived: 0, method: "Efectivo", notes: "" })
+      setPayForm(defaultPayForm)
       await loadData() // Recargar todo
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrar pago")
@@ -110,15 +114,13 @@ export default function Payments() {
 
   const openPayModal = (session: Session) => {
     setSelectedSession(session)
-    // Calcular cuánto falta pagar
     const paid = payments
       .filter(p => p.sessionId === session.id)
       .reduce((sum, p) => sum + p.amount, 0)
     const remaining = session.fee - paid
     setPayForm({
-      amountReceived: remaining, // Sugerir el monto que falta
-      method: "Efectivo",
-      notes: "",
+      ...defaultPayForm,
+      amountReceived: remaining,
     })
     setShowPayModal(true)
   }
@@ -328,9 +330,12 @@ export default function Payments() {
               {/* Fecha de pago (automática, no editable) */}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha de pago</label>
-                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
-                  {new Date().toLocaleDateString('es-PE')}
-                </div>
+                <input
+                  type="date"
+                  value={payForm.date}
+                  onChange={e => setPayForm(f => ({ ...f, date: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

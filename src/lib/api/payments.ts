@@ -129,6 +129,7 @@ export async function createPayment(params: {
   patientId: string
   amountReceived: number
   method: PaymentMethod
+  date: string  
   notes?: string
 }): Promise<Payment> {
   const { data: sessionData, error: sessionError } = await supabase
@@ -156,7 +157,7 @@ export async function createPayment(params: {
     .insert({
       session_id: params.sessionId,
       patient_id: params.patientId,
-      date: new Date().toISOString().split('T')[0],
+      date: params.date, 
       amount: totalPaid,
       method: params.method,
       status,
