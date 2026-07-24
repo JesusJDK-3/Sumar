@@ -1,10 +1,10 @@
 import { supabase } from '../supabaseClient'
-import type { Payment, PaymentMethod, Session, Patient } from '../../types'
+import type { Payment, PaymentMethod, Session, Patient, Service } from '../../types'
 
 interface PaymentRow {
   id: string
   patient_id: string
-  session_id: string
+  session_id: string | null
   service_id: string | null
   session_count: number | null
   date: string
@@ -56,7 +56,7 @@ function rowToPayment(row: PaymentRow): Payment {
   return {
     id: row.id,
     patientId: row.patient_id,
-    sessionId: row.session_id,
+    sessionId: row.session_id || undefined,
     serviceId: row.service_id || undefined,
     sessionCount: row.session_count || undefined,
     date: row.date,
@@ -85,7 +85,9 @@ export async function getSessionsWithoutPayment(): Promise<SessionWithPatient[]>
 
   const paidBySession: Record<string, number> = {}
   paymentsData?.forEach(p => {
-    paidBySession[p.session_id] = (paidBySession[p.session_id] || 0) + p.amount
+    if (p.session_id) {
+      paidBySession[p.session_id] = (paidBySession[p.session_id] || 0) + p.amount
+    }
   })
 
   const sessions = (sessionsData || []) as RawSession[]
@@ -127,7 +129,7 @@ export async function getPayments(): Promise<Payment[]> {
   return (data || []).map(rowToPayment)
 }
 
-// Crea un pago vinculado a una sesión
+// Crea un pago: puede ser por sesión individual o por paquete de sesiones
 export async function createPayment(params: {
   sessionId?: string
   patientId: string
@@ -138,24 +140,43 @@ export async function createPayment(params: {
   date: string
   notes?: string
 }): Promise<Payment> {
-  if (!params.sessionId) throw new Error('Se requiere sessionId')
+  // Validar que tengamos al menos sessionId o serviceId
+  if (!params.sessionId && !params.serviceId) {
+    throw new Error('Debe especificar una sesión o un servicio de paquete')
+  }
 
-  const { data: sessionData, error: sessionError } = await supabase
-    .from('sessions')
-    .select('fee')
-    .eq('id', params.sessionId)
-    .single()
+  let fee: number
+  const isPackage = !!params.serviceId && (params.sessionCount ?? 1) > 1
 
-  if (sessionError) throw sessionError
-  if (!sessionData) throw new Error('Sesión no encontrada')
+  if (isPackage) {
+    // Para paquetes, el monto total es lo que se recibe (no hay fee de sesión individual)
+    fee = params.amountReceived
+  } else {
+    // Para sesiones individuales, consultar el fee de la sesión
+    if (!params.sessionId) throw new Error('Se requiere sessionId para pagos por sesión')
+    
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('sessions')
+      .select('fee')
+      .eq('id', params.sessionId)
+      .single()
 
-  const fee = sessionData.fee as number
-  
+    if (sessionError) throw sessionError
+    if (!sessionData) throw new Error('Sesión no encontrada')
+
+    fee = sessionData.fee as number
+  }
+
   const totalPaid = params.amountReceived
+
   let status: 'Pagado' | 'Parcial' | 'Pendiente'
-  if (totalPaid >= fee) status = 'Pagado'
-  else if (totalPaid > 0) status = 'Parcial'
-  else status = 'Pendiente'
+  if (totalPaid >= fee) {
+    status = 'Pagado'
+  } else if (totalPaid > 0) {
+    status = 'Parcial'
+  } else {
+    status = 'Pendiente'
+  }
 
   const { data, error } = await supabase
     .from('payments')
@@ -172,7 +193,71 @@ export async function createPayment(params: {
     })
     .select()
     .single()
-  
+
   if (error) throw error
   return rowToPayment(data as PaymentRow)
+}
+
+// NUEVO: Trae los paquetes activos de un paciente
+export async function getPatientPackages(patientId: string) {
+  const { data, error } = await supabase
+    .from('patient_packages')
+    .select('*, services(*)')
+    .eq('patient_id', patientId)
+    .eq('status', 'activo')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data || []
+}
+
+// NUEVO: Crear un paquete para un paciente (se llama después de registrar el pago del paquete)
+export async function createPatientPackage(params: {
+  patientId: string
+  serviceId: string
+  totalSessions: number
+  amountPaid: number
+  paymentId: string
+}) {
+  const { data, error } = await supabase
+    .from('patient_packages')
+    .insert({
+      patient_id: params.patientId,
+      service_id: params.serviceId,
+      total_sessions: params.totalSessions,
+      used_sessions: 0,
+      amount_paid: params.amountPaid,
+      payment_id: params.paymentId,
+      status: 'activo',
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// NUEVO: Usar una sesión de un paquete (incrementar used_sessions)
+export async function usePackageSession(packageId: string) {
+  const { data: pkg, error: fetchError } = await supabase
+    .from('patient_packages')
+    .select('total_sessions, used_sessions')
+    .eq('id', packageId)
+    .single()
+
+  if (fetchError) throw fetchError
+  if (!pkg) throw new Error('Paquete no encontrado')
+
+  const newUsed = (pkg.used_sessions || 0) + 1
+  const newStatus = newUsed >= pkg.total_sessions ? 'completado' : 'activo'
+
+  const { error } = await supabase
+    .from('patient_packages')
+    .update({
+      used_sessions: newUsed,
+      status: newStatus,
+    })
+    .eq('id', packageId)
+
+  if (error) throw error
 }

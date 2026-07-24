@@ -64,7 +64,7 @@ export interface Service {
   name: string
   description?: string
   defaultFee: number
-  sessionCount: number   // ← NUEVO
+  sessionCount: number // ← NUEVO: cantidad de sesiones del paquete
   createdAt: string
 }
 
@@ -102,9 +102,9 @@ export interface Session {
 export interface Payment {
   id: string
   patientId: string
-  sessionId?: string     // ← AHORA OPCIONAL
-  serviceId?: string     // ← NUEVO
-  sessionCount?: number // ← NUEVO (1 = individual, >1 = paquete)
+  sessionId?: string // ← AHORA OPCIONAL (paquetes no van ligados a sesión específica)
+  serviceId?: string // ← NUEVO: para paquetes
+  sessionCount?: number // ← NUEVO: cuántas sesiones cubre (1 = individual, >1 = paquete)
   date: string
   amount: number
   method: PaymentMethod
@@ -134,4 +134,17 @@ export interface AttendanceRecord {
   status: AttendanceStatus
   checkinTime?: string
   notes: string
+}
+
+// ← NUEVO: Paquete activo de un paciente
+export interface PatientPackage {
+  id: string
+  patientId: string
+  serviceId: string
+  totalSessions: number
+  usedSessions: number
+  amountPaid: number
+  paymentId: string
+  status: 'activo' | 'completado' | 'cancelado'
+  createdAt: string
 }

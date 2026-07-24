@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react"
-import { Plus, X, ChevronDown, Search } from "lucide-react"
+import { Plus, X, ChevronDown, Search, Package } from "lucide-react"
 import { getSessions, createSession, updateSessionStatus } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
-import type { Session, SessionStatus, Patient, Therapist, Service } from "../types"
+import { getPatientPackages, usePackageSession } from "../lib/api/payments"
+import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage } from "../types"
 
 const statusColor: Record<SessionStatus, string> = {
   Realizada: "bg-emerald-100 text-emerald-700",
@@ -28,6 +29,7 @@ export default function Sessions() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [patientPackages, setPatientPackages] = useState<Record<string, PatientPackage[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -43,6 +45,7 @@ export default function Sessions() {
     notes: "",
     fee: 120,
   })
+  const [activePackage, setActivePackage] = useState<PatientPackage | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -74,6 +77,27 @@ export default function Sessions() {
     load()
   }, [])
 
+  // Cargar paquetes activos cuando cambia el paciente seleccionado
+  useEffect(() => {
+    if (!form.patientId) {
+      setActivePackage(null)
+      return
+    }
+    async function loadPackages() {
+      try {
+        const packages = await getPatientPackages(form.patientId!)
+        // Buscar paquete activo para el servicio seleccionado
+        const pkg = packages.find((p: any) => 
+          p.service_id === form.serviceId && p.status === 'activo'
+        )
+        setActivePackage(pkg || null)
+      } catch (err) {
+        console.error("Error cargando paquetes:", err)
+      }
+    }
+    loadPackages()
+  }, [form.patientId, form.serviceId])
+
   const getPatient = (id: string) => patients.find(p => p.id === id)
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
 
@@ -90,6 +114,15 @@ export default function Sessions() {
 
   const handleSave = async () => {
     try {
+      let sessionFee = form.fee || 120
+      
+      // Si hay paquete activo para este servicio, la sesión es gratis (ya pagada)
+      if (activePackage) {
+        sessionFee = 0
+        // Usar una sesión del paquete
+        await usePackageSession(activePackage.id)
+      }
+
       const created = await createSession({
         patientId: form.patientId!,
         therapistId: form.therapistId!,
@@ -100,10 +133,11 @@ export default function Sessions() {
         type: form.type!,
         status: form.status as SessionStatus,
         notes: form.notes || "",
-        fee: form.fee || 120,
+        fee: sessionFee,
       })
       setSessionList(prev => [created, ...prev])
       setShowForm(false)
+      setActivePackage(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar sesión")
     }
@@ -228,7 +262,15 @@ export default function Sessions() {
                         <span className="text-[#6B7A94] text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-[#2B3A5C]">S/ {s.fee}</td>
+                    <td className="px-4 py-3 font-semibold text-[#2B3A5C]">
+                      {s.fee === 0 ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600">
+                          <Package size={12} /> Cubierto
+                        </span>
+                      ) : (
+                        `S/ ${s.fee}`
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
                         {s.status}
@@ -258,7 +300,7 @@ export default function Sessions() {
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
               <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nueva sesión</h2>
-              <button onClick={() => setShowForm(false)}><X size={18} className="text-[#6B7A94]" /></button>
+              <button onClick={() => { setShowForm(false); setActivePackage(null) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -292,6 +334,35 @@ export default function Sessions() {
                   ))}
                 </select>
               </div>
+
+              {/* Alerta de paquete activo */}
+              {activePackage && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
+                  <Package size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-700">Paquete activo detectado</p>
+                    <p className="text-[11px] text-emerald-600 mt-0.5">
+                      Este paciente tiene un paquete de {activePackage.totalSessions} sesiones. 
+                      Usadas: {activePackage.usedSessions} · Restantes: {activePackage.totalSessions - activePackage.usedSessions}
+                    </p>
+                    <p className="text-[11px] text-emerald-600 mt-1 font-medium">
+                      Esta sesión se marcará como "Cubierta por paquete" (S/ 0)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Alerta si no hay paquete pero el servicio tiene paquete disponible */}
+              {!activePackage && form.serviceId && services.find(s => s.id === form.serviceId)?.sessionCount! > 1 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-amber-700">No hay paquete activo</p>
+                  <p className="text-[11px] text-amber-600 mt-0.5">
+                    Este servicio tiene paquete de {services.find(s => s.id === form.serviceId)?.sessionCount} sesiones disponible. 
+                    Considera registrar el pago del paquete primero.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha</label>
@@ -300,8 +371,16 @@ export default function Sessions() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto (S/)</label>
-                  <input type="number" value={form.fee || ""} onChange={e => setForm(f => ({ ...f, fee: +e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
+                  <input 
+                    type="number" 
+                    value={activePackage ? 0 : (form.fee || "")} 
+                    readOnly={!!activePackage}
+                    onChange={e => !activePackage && setForm(f => ({ ...f, fee: +e.target.value }))}
+                    className={`w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] ${activePackage ? 'bg-emerald-50 text-emerald-700' : ''}`} 
+                  />
+                  {activePackage && (
+                    <p className="text-[10px] text-emerald-600 mt-1">Cubierto por paquete</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Hora inicio</label>
@@ -335,7 +414,7 @@ export default function Sessions() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+              <button onClick={() => { setShowForm(false); setActivePackage(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
               <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Registrar sesión</button>
             </div>
           </div>

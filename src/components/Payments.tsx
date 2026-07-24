@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react"
-import { X, Search, CreditCard, Banknote, Smartphone } from "lucide-react"
-import { getPayments, getSessionsWithoutPayment, createPayment } from "../lib/api/payments"
+import { X, Search, CreditCard, Banknote, Smartphone, Package, Calendar } from "lucide-react"
+import { getPayments, getSessionsWithoutPayment, createPayment, createPatientPackage } from "../lib/api/payments"
 import { getPatients } from "../lib/api/patients"
-import type { Payment, Session, Patient, PaymentMethod } from "../types"
-
+import { getServices } from "../lib/api/services"
+import type { Payment, Session, Patient, PaymentMethod, Service } from "../types"
 
 type ViewMode = "historial" | "pendientes"
 type KpiFilter = "todos" | "ingresos" | "cobrado" | "parciales" | "porCobrar"
+type PayMode = "sesion" | "paquete"
 
 const methodIcon: Record<PaymentMethod, typeof Banknote> = {
   Efectivo: Banknote,
@@ -33,6 +34,7 @@ export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [pendingSessions, setPendingSessions] = useState<Session[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
+  const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("historial")
@@ -40,6 +42,9 @@ export default function Payments() {
   const [search, setSearch] = useState("")
   const [showPayModal, setShowPayModal] = useState(false)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+  const [payMode, setPayMode] = useState<PayMode>("sesion")
+  const [selectedPatientId, setSelectedPatientId] = useState("")
+  const [selectedServiceId, setSelectedServiceId] = useState("")
 
   // Form de pago
   const [payForm, setPayForm] = useState(defaultPayForm)
@@ -51,14 +56,16 @@ export default function Payments() {
   async function loadData() {
     try {
       setLoading(true)
-      const [paymentsData, pendingData, patientsData] = await Promise.all([
+      const [paymentsData, pendingData, patientsData, servicesData] = await Promise.all([
         getPayments(),
         getSessionsWithoutPayment(),
         getPatients(),
+        getServices(),
       ])
       setPayments(paymentsData)
       setPendingSessions(pendingData)
       setPatients(patientsData)
+      setServices(servicesData)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar datos")
     } finally {
@@ -67,9 +74,10 @@ export default function Payments() {
   }
 
   const getPatient = (id: string) => patients.find(p => p.id === id)
+  const getService = (id: string) => services.find(s => s.id === id)
 
   // KPIs
-  const currentMonth = new Date().toISOString().slice(0, 7) // "2026-07"
+  const currentMonth = new Date().toISOString().slice(0, 7)
   const monthPayments = payments.filter(p => p.date.startsWith(currentMonth))
   
   const stats = {
@@ -93,20 +101,50 @@ export default function Payments() {
   })
 
   const handlePay = async () => {
-    if (!selectedSession) return
     try {
-      await createPayment({
-      sessionId: selectedSession.id,
-      patientId: selectedSession.patientId,
-      amountReceived: payForm.amountReceived,
-      method: payForm.method,
-      date: payForm.date,          // ← NUEVO
-      notes: payForm.notes,
-    })
+      if (payMode === "sesion") {
+        if (!selectedSession) return
+        await createPayment({
+          sessionId: selectedSession.id,
+          patientId: selectedSession.patientId,
+          amountReceived: payForm.amountReceived,
+          method: payForm.method,
+          date: payForm.date,
+          notes: payForm.notes,
+        })
+      } else {
+        // Pago por paquete
+        if (!selectedPatientId || !selectedServiceId) return
+        const service = getService(selectedServiceId)
+        if (!service) return
+
+        const payment = await createPayment({
+          patientId: selectedPatientId,
+          serviceId: selectedServiceId,
+          sessionCount: service.sessionCount,
+          amountReceived: payForm.amountReceived,
+          method: payForm.method,
+          date: payForm.date,
+          notes: payForm.notes,
+        })
+
+        // Crear el paquete para el paciente
+        await createPatientPackage({
+          patientId: selectedPatientId,
+          serviceId: selectedServiceId,
+          totalSessions: service.sessionCount,
+          amountPaid: payForm.amountReceived,
+          paymentId: payment.id,
+        })
+      }
+
       setShowPayModal(false)
       setSelectedSession(null)
+      setSelectedPatientId("")
+      setSelectedServiceId("")
+      setPayMode("sesion")
       setPayForm(defaultPayForm)
-      await loadData() // Recargar todo
+      await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrar pago")
     }
@@ -114,6 +152,8 @@ export default function Payments() {
 
   const openPayModal = (session: Session) => {
     setSelectedSession(session)
+    setPayMode("sesion")
+    setSelectedPatientId(session.patientId)
     const paid = payments
       .filter(p => p.sessionId === session.id)
       .reduce((sum, p) => sum + p.amount, 0)
@@ -123,6 +163,25 @@ export default function Payments() {
       amountReceived: remaining,
     })
     setShowPayModal(true)
+  }
+
+  const openPackageModal = () => {
+    setSelectedSession(null)
+    setPayMode("paquete")
+    setSelectedPatientId("")
+    setSelectedServiceId("")
+    setPayForm({
+      ...defaultPayForm,
+      amountReceived: 0,
+    })
+    setShowPayModal(true)
+  }
+
+  // Calcular monto sugerido para paquete
+  const getPackageTotal = () => {
+    const service = getService(selectedServiceId)
+    if (!service) return 0
+    return service.defaultFee * service.sessionCount
   }
 
   if (loading) {
@@ -171,6 +230,12 @@ export default function Payments() {
               Por cobrar
             </button>
           </div>
+          <button 
+            onClick={openPackageModal}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#2B3A5C] text-white text-sm font-semibold rounded-lg hover:bg-[#1A2440] transition-colors"
+          >
+            <Package size={14} /> Paquete
+          </button>
         </div>
       </div>
 
@@ -222,7 +287,7 @@ export default function Payments() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E2E7EF]">
-                  {["Fecha", "Paciente", "Sesión", "Método", "Monto", "Estado", "Notas"].map(h => (
+                  {["Fecha", "Paciente", "Tipo", "Método", "Monto", "Estado", "Notas"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -231,13 +296,22 @@ export default function Payments() {
                 {filteredPayments.map(p => {
                   const patient = getPatient(p.patientId)
                   const MethodIcon = methodIcon[p.method] || Banknote
+                  const isPackagePayment = p.sessionCount && p.sessionCount > 1
                   return (
                     <tr key={p.id} className="hover:bg-[#F8F9FC] transition-colors">
                       <td className="px-4 py-3 text-[#1A2332] font-medium">{p.date}</td>
                       <td className="px-4 py-3">
                         <span className="font-semibold text-[#1A2332]">{patient?.firstName} {patient?.lastName}</span>
                       </td>
-                      <td className="px-4 py-3 text-[#6B7A94] text-xs">Sesión #{p.sessionId?.slice(0, 6)}</td>
+                      <td className="px-4 py-3">
+                        {isPackagePayment ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#2B3A5C] text-white">
+                            <Package size={11} /> Paquete {p.sessionCount} ses.
+                          </span>
+                        ) : (
+                          <span className="text-[#6B7A94] text-xs">Sesión #{p.sessionId?.slice(0, 6)}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 text-[#6B7A94]">
                           <MethodIcon size={13} /> {p.method}
@@ -300,34 +374,109 @@ export default function Payments() {
       </div>
 
       {/* Modal de pago */}
-      {showPayModal && selectedSession && (
+      {showPayModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
               <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Registrar pago
+                {payMode === "sesion" ? "Registrar pago" : "Registrar paquete"}
               </h2>
-              <button onClick={() => setShowPayModal(false)}><X size={18} className="text-[#6B7A94]" /></button>
+              <button onClick={() => { setShowPayModal(false); setPayMode("sesion") }}><X size={18} className="text-[#6B7A94]" /></button>
+            </div>
+
+            {/* Toggle modo de pago */}
+            <div className="px-6 pt-4">
+              <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
+                <button 
+                  onClick={() => setPayMode("sesion")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${payMode === "sesion" ? "bg-white text-[#2B3A5C] shadow-sm" : "text-[#6B7A94]"}`}
+                >
+                  <Calendar size={14} /> Por sesión
+                </button>
+                <button 
+                  onClick={() => setPayMode("paquete")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${payMode === "paquete" ? "bg-white text-[#E8481E] shadow-sm" : "text-[#6B7A94]"}`}
+                >
+                  <Package size={14} /> Por paquete
+                </button>
+              </div>
             </div>
             
             <div className="p-6 space-y-4">
-              {/* Paciente (no editable) */}
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
-                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
-                  {getPatient(selectedSession.patientId)?.firstName} {getPatient(selectedSession.patientId)?.lastName}
-                </div>
-              </div>
+              {payMode === "sesion" && selectedSession ? (
+                <>
+                  {/* Paciente (no editable) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
+                    <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                      {getPatient(selectedSession.patientId)?.firstName} {getPatient(selectedSession.patientId)?.lastName}
+                    </div>
+                  </div>
 
-              {/* Sesión (no editable) */}
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Sesión</label>
-                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
-                  {selectedSession.date} · {selectedSession.startTime}–{selectedSession.endTime} · {selectedSession.type}
-                </div>
-              </div>
+                  {/* Sesión (no editable) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Sesión</label>
+                    <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                      {selectedSession.date} · {selectedSession.startTime}–{selectedSession.endTime} · {selectedSession.type}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Paciente (select) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
+                    <select 
+                      value={selectedPatientId} 
+                      onChange={e => setSelectedPatientId(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                    >
+                      <option value="">Seleccionar paciente...</option>
+                      {patients.map(p => (
+                        <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Fecha de pago (automática, no editable) */}
+                  {/* Servicio/Paquete (select) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paquete de servicio</label>
+                    <select 
+                      value={selectedServiceId} 
+                      onChange={e => setSelectedServiceId(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                    >
+                      <option value="">Seleccionar paquete...</option>
+                      {services.filter(s => s.sessionCount > 1).map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.number}. {s.name} — {s.sessionCount} sesiones × S/ {s.defaultFee} = S/ {s.defaultFee * s.sessionCount}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Resumen del paquete seleccionado */}
+                  {selectedServiceId && (
+                    <div className="bg-[#FDF0EC] border border-[#E8481E]/20 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-[#E8481E] mb-1">Resumen del paquete</p>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-[#6B7A94]">Sesiones incluidas:</span>
+                        <span className="font-bold text-[#1A2332]">{getService(selectedServiceId)?.sessionCount}</span>
+                      </div>
+                      <div className="flex justify-between text-sm mt-1">
+                        <span className="text-[#6B7A94]">Precio unitario:</span>
+                        <span className="font-bold text-[#1A2332]">S/ {getService(selectedServiceId)?.defaultFee}</span>
+                      </div>
+                      <div className="flex justify-between text-sm mt-1 pt-1 border-t border-[#E8481E]/10">
+                        <span className="text-[#6B7A94] font-semibold">Total:</span>
+                        <span className="font-bold text-[#E8481E]">S/ {getPackageTotal()}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Fecha de pago */}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha de pago</label>
                 <input
@@ -339,21 +488,26 @@ export default function Payments() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                {/* Monto que debe (no editable) */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto que debe</label>
-                  <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-red-600 font-bold">
-                    S/ {selectedSession.fee - payments.filter(p => p.sessionId === selectedSession.id).reduce((a, b) => a + b.amount, 0)}
+                {/* Monto que debe (solo en modo sesión) */}
+                {payMode === "sesion" && selectedSession && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto que debe</label>
+                    <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-red-600 font-bold">
+                      S/ {selectedSession.fee - payments.filter(p => p.sessionId === selectedSession.id).reduce((a, b) => a + b.amount, 0)}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Monto recibido (editable) */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto recibido</label>
+                {/* Monto recibido */}
+                <div className={payMode === "paquete" ? "col-span-2" : ""}>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">
+                    {payMode === "paquete" ? "Monto total recibido" : "Monto recibido"}
+                  </label>
                   <input 
                     type="number" 
                     value={payForm.amountReceived} 
                     onChange={e => setPayForm(f => ({ ...f, amountReceived: +e.target.value }))}
+                    placeholder={payMode === "paquete" ? `Sugerido: S/ ${getPackageTotal()}` : ""}
                     className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" 
                   />
                 </div>
@@ -373,17 +527,17 @@ export default function Payments() {
                 </select>
               </div>
 
-              {/* Estado calculado automático */}
+              {/* Estado */}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado</label>
                 <div className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                  payForm.amountReceived >= selectedSession.fee 
+                  payForm.amountReceived >= (payMode === "sesion" && selectedSession ? selectedSession.fee : getPackageTotal())
                     ? "bg-emerald-100 text-emerald-700" 
                     : payForm.amountReceived > 0 
                       ? "bg-amber-100 text-amber-700" 
                       : "bg-red-100 text-red-700"
                 }`}>
-                  {payForm.amountReceived >= selectedSession.fee 
+                  {payForm.amountReceived >= (payMode === "sesion" && selectedSession ? selectedSession.fee : getPackageTotal())
                     ? "Pagado" 
                     : payForm.amountReceived > 0 
                       ? "Parcial" 
@@ -406,17 +560,17 @@ export default function Payments() {
 
             <div className="flex justify-end gap-2 px-6 pb-6">
               <button 
-                onClick={() => setShowPayModal(false)} 
+                onClick={() => { setShowPayModal(false); setPayMode("sesion") }} 
                 className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]"
               >
                 Cancelar
               </button>
               <button 
                 onClick={handlePay} 
-                disabled={payForm.amountReceived <= 0}
+                disabled={payForm.amountReceived <= 0 || (payMode === "paquete" && (!selectedPatientId || !selectedServiceId))}
                 className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Registrar pago
+                {payMode === "sesion" ? "Registrar pago" : "Registrar paquete"}
               </button>
             </div>
           </div>
