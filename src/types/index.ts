@@ -64,6 +64,7 @@ export interface Service {
   name: string
   description?: string
   defaultFee: number
+  sessionCount: number   // ← NUEVO
   createdAt: string
 }
 
@@ -101,7 +102,9 @@ export interface Session {
 export interface Payment {
   id: string
   patientId: string
-  sessionId: string  
+  sessionId?: string     // ← AHORA OPCIONAL
+  serviceId?: string     // ← NUEVO
+  sessionCount?: number // ← NUEVO (1 = individual, >1 = paquete)
   date: string
   amount: number
   method: PaymentMethod

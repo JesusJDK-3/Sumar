@@ -5,6 +5,8 @@ interface PaymentRow {
   id: string
   patient_id: string
   session_id: string
+  service_id: string | null
+  session_count: number | null
   date: string
   amount: number
   method: PaymentMethod
@@ -55,6 +57,8 @@ function rowToPayment(row: PaymentRow): Payment {
     id: row.id,
     patientId: row.patient_id,
     sessionId: row.session_id,
+    serviceId: row.service_id || undefined,
+    sessionCount: row.session_count || undefined,
     date: row.date,
     amount: row.amount,
     method: row.method,
@@ -125,13 +129,17 @@ export async function getPayments(): Promise<Payment[]> {
 
 // Crea un pago vinculado a una sesión
 export async function createPayment(params: {
-  sessionId: string
+  sessionId?: string
   patientId: string
+  serviceId?: string
+  sessionCount?: number
   amountReceived: number
   method: PaymentMethod
-  date: string  
+  date: string
   notes?: string
 }): Promise<Payment> {
+  if (!params.sessionId) throw new Error('Se requiere sessionId')
+
   const { data: sessionData, error: sessionError } = await supabase
     .from('sessions')
     .select('fee')
@@ -139,25 +147,24 @@ export async function createPayment(params: {
     .single()
 
   if (sessionError) throw sessionError
+  if (!sessionData) throw new Error('Sesión no encontrada')
 
   const fee = sessionData.fee as number
+  
   const totalPaid = params.amountReceived
-
   let status: 'Pagado' | 'Parcial' | 'Pendiente'
-  if (totalPaid >= fee) {
-    status = 'Pagado'
-  } else if (totalPaid > 0) {
-    status = 'Parcial'
-  } else {
-    status = 'Pendiente'
-  }
+  if (totalPaid >= fee) status = 'Pagado'
+  else if (totalPaid > 0) status = 'Parcial'
+  else status = 'Pendiente'
 
   const { data, error } = await supabase
     .from('payments')
     .insert({
-      session_id: params.sessionId,
+      session_id: params.sessionId ?? null,
       patient_id: params.patientId,
-      date: params.date, 
+      service_id: params.serviceId ?? null,
+      session_count: params.sessionCount ?? 1,
+      date: params.date,
       amount: totalPaid,
       method: params.method,
       status,
@@ -165,7 +172,7 @@ export async function createPayment(params: {
     })
     .select()
     .single()
-
+  
   if (error) throw error
   return rowToPayment(data as PaymentRow)
 }

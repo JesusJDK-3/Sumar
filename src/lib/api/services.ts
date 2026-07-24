@@ -14,6 +14,7 @@ export async function getServices(): Promise<Service[]> {
     name: row.name,
     description: row.description,
     defaultFee: row.default_fee,
+    sessionCount: row.session_count ?? 1,
     createdAt: row.created_at,
   }))
 }
@@ -32,6 +33,7 @@ export async function getServiceById(id: string): Promise<Service | null> {
     name: data.name,
     description: data.description,
     defaultFee: data.default_fee,
+    sessionCount: data.session_count ?? 1,
     createdAt: data.created_at,
   }
 }
