@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { Plus, X, ChevronDown, Search, Package } from "lucide-react"
-import { getSessions, createSession, updateSessionStatus } from "../lib/api/sessions"
+import { getSessions, createSession, updateSessionStatus, createPackageAndSessions } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
@@ -36,6 +36,7 @@ export default function Sessions() {
   const [statusFilter, setStatusFilter] = useState<SessionStatus | "Todos">("Todos")
   const [serviceFilter, setServiceFilter] = useState<string>("Todos")
   const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState<"sesion" | "paquete">("sesion")
   const [form, setForm] = useState<Partial<Session>>({
     date: new Date().toISOString().split("T")[0],
     startTime: "09:00",
@@ -86,7 +87,6 @@ export default function Sessions() {
     async function loadPackages() {
       try {
         const packages = await getPatientPackages(form.patientId!)
-        // Buscar paquete activo para el servicio seleccionado
         const pkg = packages.find((p: any) => 
           p.service_id === form.serviceId && p.status === 'activo'
         )
@@ -114,12 +114,37 @@ export default function Sessions() {
 
   const handleSave = async () => {
     try {
+      if (formMode === "paquete") {
+        // Crear paquete y sesiones
+        const service = services.find(s => s.id === form.serviceId)
+        if (!service) throw new Error("Selecciona un servicio")
+        if (!service.sessionCount || service.sessionCount <= 1) throw new Error("El servicio seleccionado no es un paquete")
+
+        await createPackageAndSessions({
+          patientId: form.patientId!,
+          therapistId: form.therapistId!,
+          serviceId: form.serviceId!,
+          totalSessions: service.sessionCount,
+          baseDate: form.date!,
+          startTime: form.startTime!,
+          endTime: form.endTime!,
+          type: form.type!,
+          amountPaid: 0, // Se paga luego desde el módulo de Pagos
+        })
+
+        // Recargar sesiones para mostrar las nuevas
+        const refreshed = await getSessions()
+        setSessionList(refreshed)
+        setShowForm(false)
+        setFormMode("sesion")
+        return
+      }
+
+      // Sesión individual
       let sessionFee = form.fee || 120
       
-      // Si hay paquete activo para este servicio, la sesión es gratis (ya pagada)
       if (activePackage) {
         sessionFee = 0
-        // Usar una sesión del paquete
         await usePackageSession(activePackage.id)
       }
 
@@ -299,9 +324,30 @@ export default function Sessions() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
-              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nueva sesión</h2>
-              <button onClick={() => { setShowForm(false); setActivePackage(null) }}><X size={18} className="text-[#6B7A94]" /></button>
+              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {formMode === "sesion" ? "Nueva sesión" : "Nuevo paquete de sesiones"}
+              </h2>
+              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
+
+            {/* Toggle Individual / Paquete */}
+            <div className="px-6 pt-4">
+              <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
+                <button 
+                  onClick={() => setFormMode("sesion")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${formMode === "sesion" ? "bg-white text-[#2B3A5C] shadow-sm" : "text-[#6B7A94]"}`}
+                >
+                  Sesión individual
+                </button>
+                <button 
+                  onClick={() => setFormMode("paquete")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${formMode === "paquete" ? "bg-white text-[#E8481E] shadow-sm" : "text-[#6B7A94]"}`}
+                >
+                  <Package size={14} /> Paquete
+                </button>
+              </div>
+            </div>
+            
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
@@ -327,16 +373,18 @@ export default function Sessions() {
                   }}
                   className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
                 >
-                  {services.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.number}. {s.name}
-                    </option>
-                  ))}
+                  {services
+                    .filter(s => formMode === "sesion" ? true : (s.sessionCount && s.sessionCount > 1))
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.number}. {s.name} {s.sessionCount && s.sessionCount > 1 ? `(${s.sessionCount} sesiones)` : ""}
+                      </option>
+                    ))}
                 </select>
               </div>
 
-              {/* Alerta de paquete activo */}
-              {activePackage && (
+              {/* Alerta de paquete activo (solo modo sesión) */}
+              {formMode === "sesion" && activePackage && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
                   <Package size={16} className="text-emerald-600 shrink-0 mt-0.5" />
                   <div>
@@ -352,14 +400,33 @@ export default function Sessions() {
                 </div>
               )}
 
-              {/* Alerta si no hay paquete pero el servicio tiene paquete disponible */}
-              {!activePackage && form.serviceId && services.find(s => s.id === form.serviceId)?.sessionCount! > 1 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-semibold text-amber-700">No hay paquete activo</p>
-                  <p className="text-[11px] text-amber-600 mt-0.5">
-                    Este servicio tiene paquete de {services.find(s => s.id === form.serviceId)?.sessionCount} sesiones disponible. 
-                    Considera registrar el pago del paquete primero.
-                  </p>
+              {/* Info de paquete seleccionado (solo modo paquete) */}
+              {formMode === "paquete" && form.serviceId && (
+                <div className="bg-[#FDF0EC] border border-[#E8481E]/20 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-[#E8481E] mb-1">Resumen del paquete</p>
+                  {(() => {
+                    const svc = services.find(s => s.id === form.serviceId)
+                    if (!svc) return null
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-[#6B7A94]">Sesiones:</span>
+                          <span className="font-bold text-[#1A2332]">{svc.sessionCount}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-[#6B7A94]">Precio unitario:</span>
+                          <span className="font-bold text-[#1A2332]">S/ {svc.defaultFee}</span>
+                        </div>
+                        <div className="flex justify-between text-sm pt-1 border-t border-[#E8481E]/10">
+                          <span className="text-[#6B7A94] font-semibold">Total estimado:</span>
+                          <span className="font-bold text-[#E8481E]">S/ {svc.defaultFee * (svc.sessionCount || 1)}</span>
+                        </div>
+                        <p className="text-[10px] text-[#6B7A94] mt-1">
+                          El pago se registrará desde el módulo de Pagos.
+                        </p>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
 
@@ -373,13 +440,13 @@ export default function Sessions() {
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto (S/)</label>
                   <input 
                     type="number" 
-                    value={activePackage ? 0 : (form.fee || "")} 
-                    readOnly={!!activePackage}
-                    onChange={e => !activePackage && setForm(f => ({ ...f, fee: +e.target.value }))}
-                    className={`w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] ${activePackage ? 'bg-emerald-50 text-emerald-700' : ''}`} 
+                    value={formMode === "paquete" ? 0 : (form.fee || "")} 
+                    readOnly={formMode === "paquete" || !!activePackage}
+                    onChange={e => !(formMode === "paquete" || activePackage) && setForm(f => ({ ...f, fee: +e.target.value }))}
+                    className={`w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] ${formMode === "paquete" || activePackage ? 'bg-[#F2F4F8] text-[#6B7A94]' : ''}`} 
                   />
-                  {activePackage && (
-                    <p className="text-[10px] text-emerald-600 mt-1">Cubierto por paquete</p>
+                  {formMode === "paquete" && (
+                    <p className="text-[10px] text-[#6B7A94] mt-1">El pago se gestiona desde Pagos</p>
                   )}
                 </div>
                 <div>
@@ -400,13 +467,15 @@ export default function Sessions() {
                   {["Individual", "Grupal", "Familiar", "Evaluación inicial"].map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado</label>
-                <select value={form.status || "Pendiente"} onChange={e => setForm(f => ({ ...f, status: e.target.value as SessionStatus }))}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
-                  {["Pendiente", "Realizada", "Cancelada", "Reprogramada"].map(st => <option key={st}>{st}</option>)}
-                </select>
-              </div>
+              {formMode === "sesion" && (
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado</label>
+                  <select value={form.status || "Pendiente"} onChange={e => setForm(f => ({ ...f, status: e.target.value as SessionStatus }))}
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
+                    {["Pendiente", "Realizada", "Cancelada", "Reprogramada"].map(st => <option key={st}>{st}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Notas</label>
                 <textarea value={form.notes || ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
@@ -414,8 +483,10 @@ export default function Sessions() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => { setShowForm(false); setActivePackage(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Registrar sesión</button>
+              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">
+                {formMode === "paquete" ? "Crear paquete" : "Registrar sesión"}
+              </button>
             </div>
           </div>
         </div>
