@@ -84,7 +84,7 @@ export async function createPackageAndSessions(params: {
   startTime: string
   endTime: string
   type: string
-  amountPaid: number
+  packagePrice: number  // ← Monto total acordado (editable)
 }): Promise<{ packageId: string; sessions: Session[] }> {
   // 1. Crear el paquete
   const { data: pkgData, error: pkgError } = await supabase
@@ -94,7 +94,8 @@ export async function createPackageAndSessions(params: {
       service_id: params.serviceId,
       total_sessions: params.totalSessions,
       used_sessions: 0,
-      amount_paid: params.amountPaid,
+      amount_paid: 0,           // ← Se paga luego desde el módulo de Pagos
+      total_amount: params.packagePrice,  // ← Monto total acordado del paquete
       status: 'activo',
     })
     .select()

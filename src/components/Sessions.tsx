@@ -47,6 +47,7 @@ export default function Sessions() {
     fee: 120,
   })
   const [activePackage, setActivePackage] = useState<PatientPackage | null>(null)
+  const [packagePrice, setPackagePrice] = useState<number>(0)
 
   useEffect(() => {
     async function load() {
@@ -98,6 +99,16 @@ export default function Sessions() {
     loadPackages()
   }, [form.patientId, form.serviceId])
 
+  // Actualizar precio sugerido cuando cambia el servicio en modo paquete
+  useEffect(() => {
+    if (formMode === "paquete" && form.serviceId) {
+      const svc = services.find(s => s.id === form.serviceId)
+      if (svc && svc.sessionCount && svc.sessionCount > 1) {
+        setPackagePrice(svc.defaultFee * svc.sessionCount)
+      }
+    }
+  }, [formMode, form.serviceId, services])
+
   const getPatient = (id: string) => patients.find(p => p.id === id)
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
 
@@ -120,6 +131,8 @@ export default function Sessions() {
         if (!service) throw new Error("Selecciona un servicio")
         if (!service.sessionCount || service.sessionCount <= 1) throw new Error("El servicio seleccionado no es un paquete")
 
+        if (packagePrice <= 0) throw new Error("El monto del paquete debe ser mayor a 0")
+
         await createPackageAndSessions({
           patientId: form.patientId!,
           therapistId: form.therapistId!,
@@ -129,7 +142,7 @@ export default function Sessions() {
           startTime: form.startTime!,
           endTime: form.endTime!,
           type: form.type!,
-          amountPaid: 0, // Se paga luego desde el módulo de Pagos
+          packagePrice: packagePrice,  // ← Monto total acordado (editable)
         })
 
         // Recargar sesiones para mostrar las nuevas
@@ -137,6 +150,7 @@ export default function Sessions() {
         setSessionList(refreshed)
         setShowForm(false)
         setFormMode("sesion")
+        setPackagePrice(0)
         return
       }
 
@@ -327,7 +341,7 @@ export default function Sessions() {
               <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {formMode === "sesion" ? "Nueva sesión" : "Nuevo paquete de sesiones"}
               </h2>
-              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null) }}><X size={18} className="text-[#6B7A94]" /></button>
+              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
 
             {/* Toggle Individual / Paquete */}
@@ -402,13 +416,14 @@ export default function Sessions() {
 
               {/* Info de paquete seleccionado (solo modo paquete) */}
               {formMode === "paquete" && form.serviceId && (
-                <div className="bg-[#FDF0EC] border border-[#E8481E]/20 rounded-lg p-3">
-                  <p className="text-xs font-semibold text-[#E8481E] mb-1">Resumen del paquete</p>
+                <div className="bg-[#FDF0EC] border border-[#E8481E]/20 rounded-lg p-3 space-y-3">
+                  <p className="text-xs font-semibold text-[#E8481E]">Configuración del paquete</p>
                   {(() => {
                     const svc = services.find(s => s.id === form.serviceId)
                     if (!svc) return null
+                    const suggested = svc.defaultFee * (svc.sessionCount || 1)
                     return (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-[#6B7A94]">Sesiones:</span>
                           <span className="font-bold text-[#1A2332]">{svc.sessionCount}</span>
@@ -417,13 +432,26 @@ export default function Sessions() {
                           <span className="text-[#6B7A94]">Precio unitario:</span>
                           <span className="font-bold text-[#1A2332]">S/ {svc.defaultFee}</span>
                         </div>
-                        <div className="flex justify-between text-sm pt-1 border-t border-[#E8481E]/10">
-                          <span className="text-[#6B7A94] font-semibold">Total estimado:</span>
-                          <span className="font-bold text-[#E8481E]">S/ {svc.defaultFee * (svc.sessionCount || 1)}</span>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-[#6B7A94]">Precio sugerido:</span>
+                          <span className="font-bold text-[#1A2332]">S/ {suggested}</span>
                         </div>
-                        <p className="text-[10px] text-[#6B7A94] mt-1">
-                          El pago se registrará desde el módulo de Pagos.
-                        </p>
+                        <div className="pt-2 border-t border-[#E8481E]/10">
+                          <label className="block text-xs font-semibold text-[#6B7A94] mb-1">
+                            Monto total del paquete (S/) <span className="text-[#E8481E]">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={packagePrice}
+                            onChange={e => setPackagePrice(+e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-[#E8481E]/30 rounded-lg outline-none focus:border-[#E8481E] font-semibold text-[#E8481E]"
+                            placeholder={`Sugerido: S/ ${suggested}`}
+                          />
+                          <p className="text-[10px] text-[#6B7A94] mt-1">
+                            Puedes modificar el monto si hay descuento o promoción.
+                          </p>
+                        </div>
                       </div>
                     )
                   })()}
@@ -483,7 +511,7 @@ export default function Sessions() {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
               <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">
                 {formMode === "paquete" ? "Crear paquete" : "Registrar sesión"}
               </button>
