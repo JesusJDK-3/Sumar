@@ -146,7 +146,6 @@ export interface PatientPackage {
   totalSessions: number
   usedSessions: number
   amountPaid: number
-  totalAmount: number  // ← Monto total acordado del paquete (editable)
   paymentId: string
   status: 'activo' | 'completado' | 'cancelado'
   createdAt: string

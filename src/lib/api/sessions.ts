@@ -84,9 +84,12 @@ export async function createPackageAndSessions(params: {
   startTime: string
   endTime: string
   type: string
-  packagePrice: number  // ← Monto total acordado (editable)
+  packagePrice: number  // ← Monto total acordado del paquete
 }): Promise<{ packageId: string; sessions: Session[] }> {
   // 1. Crear el paquete
+  // WORKAROUND: Guardamos el monto acordado en amount_paid temporalmente.
+  // Cuando agregues la columna 'total_amount' (numeric) a patient_packages,
+  // cambia 'amount_paid' por 'total_amount' aquí abajo.
   const { data: pkgData, error: pkgError } = await supabase
     .from('patient_packages')
     .insert({
@@ -94,8 +97,7 @@ export async function createPackageAndSessions(params: {
       service_id: params.serviceId,
       total_sessions: params.totalSessions,
       used_sessions: 0,
-      amount_paid: 0,           // ← Se paga luego desde el módulo de Pagos
-      total_amount: params.packagePrice,  // ← Monto total acordado del paquete
+      amount_paid: params.packagePrice,  // ← WORKAROUND: monto acordado (temporal en amount_paid)
       status: 'activo',
     })
     .select()

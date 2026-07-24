@@ -29,7 +29,7 @@ export default function Sessions() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [services, setServices] = useState<Service[]>([])
-  const [patientPackages, setPatientPackages] = useState<Record<string, PatientPackage[]>>({})
+  const [packagePrice, setPackagePrice] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -47,7 +47,6 @@ export default function Sessions() {
     fee: 120,
   })
   const [activePackage, setActivePackage] = useState<PatientPackage | null>(null)
-  const [packagePrice, setPackagePrice] = useState<number>(0)
 
   useEffect(() => {
     async function load() {
@@ -99,6 +98,30 @@ export default function Sessions() {
     loadPackages()
   }, [form.patientId, form.serviceId])
 
+  // Manejar cambio de modo: auto-seleccionar servicio de paquete al cambiar a "paquete"
+  useEffect(() => {
+    if (formMode === "paquete") {
+      const currentSvc = services.find(s => s.id === form.serviceId)
+      // Si no hay servicio de paquete seleccionado, elegir el primero disponible
+      if (!currentSvc || !currentSvc.sessionCount || currentSvc.sessionCount <= 1) {
+        const firstPackage = services.find(s => s.sessionCount && s.sessionCount > 1)
+        if (firstPackage) {
+          setForm(f => ({ ...f, serviceId: firstPackage.id, fee: 0 }))
+        }
+      } else {
+        // Si ya hay un paquete seleccionado, calcular el precio sugerido
+        setPackagePrice(currentSvc.defaultFee * currentSvc.sessionCount)
+      }
+    } else {
+      // Al volver a modo sesión: resetear packagePrice y restaurar fee del servicio actual
+      setPackagePrice(0)
+      const currentSvc = services.find(s => s.id === form.serviceId)
+      if (currentSvc) {
+        setForm(f => ({ ...f, fee: currentSvc.defaultFee }))
+      }
+    }
+  }, [formMode, services])
+
   // Actualizar precio sugerido cuando cambia el servicio en modo paquete
   useEffect(() => {
     if (formMode === "paquete" && form.serviceId) {
@@ -142,7 +165,7 @@ export default function Sessions() {
           startTime: form.startTime!,
           endTime: form.endTime!,
           type: form.type!,
-          packagePrice: packagePrice,  // ← Monto total acordado (editable)
+          packagePrice: packagePrice,  // ← Monto total acordado del paquete
         })
 
         // Recargar sesiones para mostrar las nuevas
@@ -150,7 +173,6 @@ export default function Sessions() {
         setSessionList(refreshed)
         setShowForm(false)
         setFormMode("sesion")
-        setPackagePrice(0)
         return
       }
 
