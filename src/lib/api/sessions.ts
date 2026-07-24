@@ -7,6 +7,7 @@ interface SessionRow {
   patient_id: string
   therapist_id: string
   service_id: string | null
+  package_id: string | null  // ← NUEVO
   date: string
   start_time: string
   end_time: string
@@ -23,7 +24,7 @@ interface ServiceRow {
   name: string
   description: string | null
   default_fee: number
-  session_count?: number // ← NUEVO
+  session_count?: number  // ← NUEVO
 }
 
 function rowToService(row: ServiceRow): Service {
@@ -33,7 +34,7 @@ function rowToService(row: ServiceRow): Service {
     name: row.name,
     description: row.description || undefined,
     defaultFee: row.default_fee,
-    sessionCount: row.session_count ?? 1, // ← NUEVO
+    sessionCount: row.session_count ?? 1,  // ← NUEVO
     createdAt: '',
   }
 }
@@ -44,6 +45,7 @@ function rowToSession(row: SessionRow): Session {
     patientId: row.patient_id,
     therapistId: row.therapist_id,
     serviceId: row.service_id || undefined,
+    packageId: row.package_id || undefined,  // ← NUEVO
     date: row.date,
     startTime: row.start_time,
     endTime: row.end_time,
@@ -61,6 +63,7 @@ function sessionToRow(s: Partial<Session> & { appointmentId?: string }) {
     patient_id: s.patientId,
     therapist_id: s.therapistId,
     service_id: s.serviceId ?? null,
+    package_id: s.packageId ?? null,  // ← NUEVO
     date: s.date,
     start_time: s.startTime,
     end_time: s.endTime,
@@ -71,38 +74,61 @@ function sessionToRow(s: Partial<Session> & { appointmentId?: string }) {
   }
 }
 
-export async function createSessionsFromPackage(params: {
+// NUEVO: Crear paquete y generar N sesiones
+export async function createPackageAndSessions(params: {
   patientId: string
   therapistId: string
   serviceId: string
-  packageId: string
-  count: number
+  totalSessions: number
   baseDate: string
   startTime: string
   endTime: string
   type: string
-}): Promise<Session[]> {
-  const sessions = Array.from({ length: params.count }, (_, i) => ({
+  amountPaid: number
+}): Promise<{ packageId: string; sessions: Session[] }> {
+  // 1. Crear el paquete
+  const { data: pkgData, error: pkgError } = await supabase
+    .from('patient_packages')
+    .insert({
+      patient_id: params.patientId,
+      service_id: params.serviceId,
+      total_sessions: params.totalSessions,
+      used_sessions: 0,
+      amount_paid: params.amountPaid,
+      status: 'activo',
+    })
+    .select()
+    .single()
+
+  if (pkgError) throw pkgError
+  const packageId = pkgData.id
+
+  // 2. Crear las N sesiones
+  const sessionsData = Array.from({ length: params.totalSessions }, (_, i) => ({
     patient_id: params.patientId,
     therapist_id: params.therapistId,
     service_id: params.serviceId,
-    package_id: params.packageId,
-    date: params.baseDate, // Aquí podrías calcular fechas semanales
+    package_id: packageId,
+    date: params.baseDate, // Podrías calcular fechas futuras aquí
     start_time: params.startTime,
     end_time: params.endTime,
     type: params.type,
     status: 'Pendiente',
-    notes: `Sesión ${i + 1} de ${params.count} del paquete`,
+    notes: `Sesión ${i + 1} de ${params.totalSessions}`,
     fee: 0,
   }))
 
-  const { data, error } = await supabase
+  const { data: sessions, error: sessionsError } = await supabase
     .from('sessions')
-    .insert(sessions)
+    .insert(sessionsData)
     .select('*, services!left(*)')
 
-  if (error) throw error
-  return (data as SessionRow[]).map(rowToSession)
+  if (sessionsError) throw sessionsError
+
+  return {
+    packageId,
+    sessions: (sessions as SessionRow[]).map(rowToSession),
+  }
 }
 
 export async function getSessions(): Promise<Session[]> {
