@@ -146,7 +146,7 @@ export async function createPayment(params: {
   }
 
   let fee: number
-  const isPackage = !!params.serviceId && (params.sessionCount ?? 1) > 1
+  const isPackage = !!params.serviceId && !!params.sessionCount && params.sessionCount > 1
 
   if (isPackage) {
     // Para paquetes, el monto total es lo que se recibe (no hay fee de sesión individual)

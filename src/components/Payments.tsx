@@ -128,10 +128,11 @@ export default function Payments() {
         if (!service) throw new Error("Servicio no encontrado")
 
         // Crear el registro de pago
+        // EN handlePay, modo paquete:
         const payment = await createPayment({
           patientId: selectedPackage.patient_id,
           serviceId: selectedPackage.service_id,
-          sessionCount: service.sessionCount,
+          sessionCount: selectedPackage.total_sessions, // ← usar el del paquete, no del servicio
           amountReceived: payForm.amountReceived,
           method: payForm.method,
           date: payForm.date,
