@@ -449,22 +449,23 @@ export default function Sessions() {
               </div>
 
               {/* Alerta de paquete activo (solo modo sesión) */}
-              {formMode === "sesion" && activePackage && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
-                  <Package size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-emerald-700">Paquete activo detectado</p>
-                    <p className="text-[11px] text-emerald-600 mt-0.5">
-                      {/* FIX: Todo en snake_case como viene de Supabase */}
-                      Este paciente tiene un paquete de {activePackage.total_sessions || 0} sesiones. 
-                      Usadas: {activePackage.used_sessions || 0} · Restantes: {(activePackage.total_sessions || 0) - (activePackage.used_sessions || 0)}
-                    </p>
-                    <p className="text-[11px] text-emerald-600 mt-1 font-medium">
-                      Esta sesión se marcará como "Cubierta por paquete" (S/ 0)
-                    </p>
-                  </div>
+              // LÍNEA ~270 — Alerta de paquete activo
+            {formMode === "sesion" && activePackage && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
+                <Package size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-emerald-700">Paquete activo detectado</p>
+                  <p className="text-[11px] text-emerald-600 mt-0.5">
+                    {/* FIX: Todo en snake_case como viene de Supabase */}
+                    Este paciente tiene un paquete de {activePackage.total_sessions || 0} sesiones. 
+                    Usadas: {activePackage.used_sessions || 0} · Restantes: {(activePackage.total_sessions || 0) - (activePackage.used_sessions || 0)}
+                  </p>
+                  <p className="text-[11px] text-emerald-600 mt-1 font-medium">
+                    Esta sesión se marcará como "Cubierta por paquete" (S/ 0)
+                  </p>
                 </div>
-              )}
+              </div>
+            )}
 
               {/* Info de paquete seleccionado (solo modo paquete) */}
               {formMode === "paquete" && form.serviceId && (
