@@ -139,6 +139,7 @@ export async function createPayment(params: {
   method: PaymentMethod
   date: string
   notes?: string
+  session_count: params.sessionCount ?? 1,
 }): Promise<Payment> {
   // Validar que tengamos al menos sessionId o serviceId
   if (!params.sessionId && !params.serviceId) {

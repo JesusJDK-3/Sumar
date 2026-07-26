@@ -455,7 +455,8 @@ export default function Sessions() {
                   <div>
                     <p className="text-xs font-semibold text-emerald-700">Paquete activo detectado</p>
                     <p className="text-[11px] text-emerald-600 mt-0.5">
-                      Este paciente tiene un paquete de {activePackage.totalSessions} sesiones. 
+                      {/* FIX: Todo en snake_case como viene de Supabase */}
+                      Este paciente tiene un paquete de {activePackage.total_sessions || 0} sesiones. 
                       Usadas: {activePackage.used_sessions || 0} · Restantes: {(activePackage.total_sessions || 0) - (activePackage.used_sessions || 0)}
                     </p>
                     <p className="text-[11px] text-emerald-600 mt-1 font-medium">
