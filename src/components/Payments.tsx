@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react"
 import { X, Search, CreditCard, Banknote, Smartphone, Package, Calendar } from "lucide-react"
-import { getPayments, getSessionsWithoutPayment, createPayment, createPatientPackage } from "../lib/api/payments"
+import { getPayments, getSessionsWithoutPayment, createPayment } from "../lib/api/payments"
 import { getPatients } from "../lib/api/patients"
 import { getServices } from "../lib/api/services"
+import { supabase } from "../lib/supabaseClient"
 import type { Payment, Session, Patient, PaymentMethod, Service } from "../types"
 
 type ViewMode = "historial" | "pendientes"
 type KpiFilter = "todos" | "ingresos" | "cobrado" | "parciales" | "porCobrar"
-type PayMode = "sesion" | "paquete"
 
 const methodIcon: Record<PaymentMethod, typeof Banknote> = {
   Efectivo: Banknote,
@@ -33,6 +33,7 @@ const defaultPayForm = {
 export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [pendingSessions, setPendingSessions] = useState<Session[]>([])
+  const [pendingPackages, setPendingPackages] = useState<any[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,11 +43,7 @@ export default function Payments() {
   const [search, setSearch] = useState("")
   const [showPayModal, setShowPayModal] = useState(false)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
-  const [payMode, setPayMode] = useState<PayMode>("sesion")
-  const [selectedPatientId, setSelectedPatientId] = useState("")
-  const [selectedServiceId, setSelectedServiceId] = useState("")
-
-  // Form de pago
+  const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
   const [payForm, setPayForm] = useState(defaultPayForm)
 
   useEffect(() => {
@@ -66,6 +63,18 @@ export default function Payments() {
       setPendingSessions(pendingData)
       setPatients(patientsData)
       setServices(servicesData)
+      
+      // Cargar paquetes activos sin pagar (amount_paid = 0)
+      const { data: packagesData, error: pkgError } = await supabase
+        .from('patient_packages')
+        .select('*, services(*)')
+        .eq('status', 'activo')
+        .eq('amount_paid', 0)
+        .order('created_at', { ascending: false })
+      
+      if (!pkgError) {
+        setPendingPackages(packagesData || [])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar datos")
     } finally {
@@ -84,7 +93,8 @@ export default function Payments() {
     ingresosMes: monthPayments.reduce((sum, p) => sum + p.amount, 0),
     totalCobrado: payments.filter(p => p.status === "Pagado").reduce((sum, p) => sum + p.amount, 0),
     pagosParciales: payments.filter(p => p.status === "Parcial").length,
-    porCobrar: pendingSessions.reduce((sum, s) => sum + (s.fee - (payments.filter(pay => pay.sessionId === s.id).reduce((a, b) => a + b.amount, 0))), 0),
+    porCobrar: pendingSessions.reduce((sum, s) => sum + (s.fee - (payments.filter(pay => pay.sessionId === s.id).reduce((a, b) => a + b.amount, 0))), 0)
+      + pendingPackages.reduce((sum, pkg) => sum + (pkg.total_amount || 0), 0),
   }
 
   // Filtrar pagos según KPI seleccionado
@@ -102,8 +112,8 @@ export default function Payments() {
 
   const handlePay = async () => {
     try {
-      if (payMode === "sesion") {
-        if (!selectedSession) return
+      if (selectedSession) {
+        // Pago de sesión individual
         await createPayment({
           sessionId: selectedSession.id,
           patientId: selectedSession.patientId,
@@ -112,37 +122,39 @@ export default function Payments() {
           date: payForm.date,
           notes: payForm.notes,
         })
-      } else {
-        // Pago por paquete
-        if (!selectedPatientId || !selectedServiceId) return
-        const service = getService(selectedServiceId)
-        if (!service) return
+      } else if (selectedPackage) {
+        // Pago de paquete existente
+        const service = services.find(s => s.id === selectedPackage.service_id)
+        if (!service) throw new Error("Servicio no encontrado")
 
+        // Crear el registro de pago
         const payment = await createPayment({
-          patientId: selectedPatientId,
-          serviceId: selectedServiceId,
+          patientId: selectedPackage.patient_id,
+          serviceId: selectedPackage.service_id,
           sessionCount: service.sessionCount,
           amountReceived: payForm.amountReceived,
           method: payForm.method,
           date: payForm.date,
-          notes: payForm.notes,
+          notes: payForm.notes || `Pago de paquete ${service.name}`,
         })
 
-        // Crear el paquete para el paciente
-        await createPatientPackage({
-          patientId: selectedPatientId,
-          serviceId: selectedServiceId,
-          totalSessions: service.sessionCount,
-          amountPaid: payForm.amountReceived,
-          paymentId: payment.id,
-        })
+        // Actualizar el paquete con el monto pagado
+        const newAmountPaid = (selectedPackage.amount_paid || 0) + payForm.amountReceived
+        const { error: updateError } = await supabase
+          .from('patient_packages')
+          .update({ 
+            amount_paid: newAmountPaid,
+            payment_id: payment.id,
+            status: newAmountPaid >= (selectedPackage.total_amount || 0) ? 'completado' : 'activo'
+          })
+          .eq('id', selectedPackage.id)
+
+        if (updateError) throw updateError
       }
 
       setShowPayModal(false)
       setSelectedSession(null)
-      setSelectedPatientId("")
-      setSelectedServiceId("")
-      setPayMode("sesion")
+      setSelectedPackage(null)
       setPayForm(defaultPayForm)
       await loadData()
     } catch (err) {
@@ -152,8 +164,7 @@ export default function Payments() {
 
   const openPayModal = (session: Session) => {
     setSelectedSession(session)
-    setPayMode("sesion")
-    setSelectedPatientId(session.patientId)
+    setSelectedPackage(null)
     const paid = payments
       .filter(p => p.sessionId === session.id)
       .reduce((sum, p) => sum + p.amount, 0)
@@ -165,23 +176,16 @@ export default function Payments() {
     setShowPayModal(true)
   }
 
-  const openPackageModal = () => {
+  const openPackagePayModal = (pkg: any) => {
     setSelectedSession(null)
-    setPayMode("paquete")
-    setSelectedPatientId("")
-    setSelectedServiceId("")
+    setSelectedPackage(pkg)
+    const total = pkg.total_amount || 0
+    const paid = pkg.amount_paid || 0
     setPayForm({
       ...defaultPayForm,
-      amountReceived: 0,
+      amountReceived: total - paid,
     })
     setShowPayModal(true)
-  }
-
-  // Calcular monto sugerido para paquete
-  const getPackageTotal = () => {
-    const service = getService(selectedServiceId)
-    if (!service) return 0
-    return service.defaultFee * service.sessionCount
   }
 
   if (loading) {
@@ -203,7 +207,7 @@ export default function Payments() {
             Gestión de Pagos
           </h1>
           <p className="text-xs text-[#6B7A94] mt-0.5">
-            {viewMode === "historial" ? `${payments.length} pagos registrados` : `${pendingSessions.length} pendientes de cobro`}
+            {viewMode === "historial" ? `${payments.length} pagos registrados` : `${pendingSessions.length + pendingPackages.length} pendientes de cobro`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -230,12 +234,7 @@ export default function Payments() {
               Por cobrar
             </button>
           </div>
-          <button 
-            onClick={openPackageModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#2B3A5C] text-white text-sm font-semibold rounded-lg hover:bg-[#1A2440] transition-colors"
-          >
-            <Package size={14} /> Paquete
-          </button>
+          {/* ❌ BOTÓN PAQUETE ELIMINADO - ahora se maneja desde Sesiones */}
         </div>
       </div>
 
@@ -330,16 +329,17 @@ export default function Payments() {
               </tbody>
             </table>
           ) : (
-            // PENDIENTES DE COBRO
+            // PENDIENTES DE COBRO - Sesiones + Paquetes
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#E2E7EF]">
-                  {["Fecha", "Paciente", "Servicio", "Honorario", "Pagado", "Debe", ""].map(h => (
+                  {["Fecha", "Paciente", "Concepto", "Total", "Pagado", "Debe", ""].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F2F4F8]">
+                {/* Sesiones individuales pendientes */}
                 {pendingSessions.map(s => {
                   const patient = getPatient(s.patientId)
                   const paid = payments
@@ -367,6 +367,43 @@ export default function Payments() {
                     </tr>
                   )
                 })}
+                
+                {/* Paquetes pendientes de pago */}
+                {pendingPackages.map(pkg => {
+                  const patient = getPatient(pkg.patient_id)
+                  const service = pkg.services
+                  const total = pkg.total_amount || 0
+                  const paid = pkg.amount_paid || 0
+                  const remaining = total - paid
+                  return (
+                    <tr key={pkg.id} className="hover:bg-[#F8F9FC] transition-colors bg-[#FDF0EC]/30">
+                      <td className="px-4 py-3 text-[#1A2332] font-medium">
+                        {new Date(pkg.created_at).toLocaleDateString('es-PE')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-[#1A2332]">{patient?.firstName} {patient?.lastName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#2B3A5C] text-white">
+                          <Package size={11} /> {service?.name} ({pkg.total_sessions} ses.)
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-[#2B3A5C]">S/ {total}</td>
+                      <td className="px-4 py-3 text-emerald-600 font-medium">S/ {paid}</td>
+                      <td className="px-4 py-3 text-red-600 font-bold">S/ {remaining}</td>
+                      <td className="px-4 py-3">
+                        <button 
+                          onClick={() => openPackagePayModal(pkg)}
+                          className="px-3 py-1.5 bg-[#E8481E] text-white text-xs font-semibold rounded-lg hover:bg-[#C93A14] transition-colors"
+                        >
+                          Pagar
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -379,102 +416,46 @@ export default function Payments() {
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
               <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {payMode === "sesion" ? "Registrar pago" : "Registrar paquete"}
+                {selectedPackage ? "Pagar paquete" : "Registrar pago"}
               </h2>
-              <button onClick={() => { setShowPayModal(false); setPayMode("sesion") }}><X size={18} className="text-[#6B7A94]" /></button>
-            </div>
-
-            {/* Toggle modo de pago */}
-            <div className="px-6 pt-4">
-              <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
-                <button 
-                  onClick={() => setPayMode("sesion")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${payMode === "sesion" ? "bg-white text-[#2B3A5C] shadow-sm" : "text-[#6B7A94]"}`}
-                >
-                  <Calendar size={14} /> Por sesión
-                </button>
-                <button 
-                  onClick={() => setPayMode("paquete")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${payMode === "paquete" ? "bg-white text-[#E8481E] shadow-sm" : "text-[#6B7A94]"}`}
-                >
-                  <Package size={14} /> Por paquete
-                </button>
-              </div>
+              <button onClick={() => { setShowPayModal(false); setSelectedSession(null); setSelectedPackage(null) }}>
+                <X size={18} className="text-[#6B7A94]" />
+              </button>
             </div>
             
             <div className="p-6 space-y-4">
-              {payMode === "sesion" && selectedSession ? (
-                <>
-                  {/* Paciente (no editable) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
-                    <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
-                      {getPatient(selectedSession.patientId)?.firstName} {getPatient(selectedSession.patientId)?.lastName}
-                    </div>
-                  </div>
+              {/* Paciente */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
+                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                  {selectedPackage 
+                    ? `${getPatient(selectedPackage.patient_id)?.firstName} ${getPatient(selectedPackage.patient_id)?.lastName}`
+                    : `${getPatient(selectedSession?.patientId || '')?.firstName} ${getPatient(selectedSession?.patientId || '')?.lastName}`
+                  }
+                </div>
+              </div>
 
-                  {/* Sesión (no editable) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Sesión</label>
-                    <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
-                      {selectedSession.date} · {selectedSession.startTime}–{selectedSession.endTime} · {selectedSession.type}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Paciente (select) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
-                    <select 
-                      value={selectedPatientId} 
-                      onChange={e => setSelectedPatientId(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
-                    >
-                      <option value="">Seleccionar paciente...</option>
-                      {patients.map(p => (
-                        <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
-                      ))}
-                    </select>
-                  </div>
+              {/* Concepto */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Concepto</label>
+                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-[#6B7A94]">
+                  {selectedPackage 
+                    ? `Paquete: ${selectedPackage.services?.name} (${selectedPackage.total_sessions} sesiones)`
+                    : `${selectedSession?.date} · ${selectedSession?.startTime}–${selectedSession?.endTime} · ${selectedSession?.type}`
+                  }
+                </div>
+              </div>
 
-                  {/* Servicio/Paquete (select) */}
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paquete de servicio</label>
-                    <select 
-                      value={selectedServiceId} 
-                      onChange={e => setSelectedServiceId(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
-                    >
-                      <option value="">Seleccionar paquete...</option>
-                      {services.filter(s => s.sessionCount > 1).map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.number}. {s.name} — {s.sessionCount} sesiones × S/ {s.defaultFee} = S/ {s.defaultFee * s.sessionCount}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Resumen del paquete seleccionado */}
-                  {selectedServiceId && (
-                    <div className="bg-[#FDF0EC] border border-[#E8481E]/20 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-[#E8481E] mb-1">Resumen del paquete</p>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#6B7A94]">Sesiones incluidas:</span>
-                        <span className="font-bold text-[#1A2332]">{getService(selectedServiceId)?.sessionCount}</span>
-                      </div>
-                      <div className="flex justify-between text-sm mt-1">
-                        <span className="text-[#6B7A94]">Precio unitario:</span>
-                        <span className="font-bold text-[#1A2332]">S/ {getService(selectedServiceId)?.defaultFee}</span>
-                      </div>
-                      <div className="flex justify-between text-sm mt-1 pt-1 border-t border-[#E8481E]/10">
-                        <span className="text-[#6B7A94] font-semibold">Total:</span>
-                        <span className="font-bold text-[#E8481E]">S/ {getPackageTotal()}</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+              {/* Monto que debe */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto que debe</label>
+                <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-red-600 font-bold">
+                  S/ {selectedPackage 
+                    ? ((selectedPackage.total_amount || 0) - (selectedPackage.amount_paid || 0))
+                    : (selectedSession ? selectedSession.fee - payments.filter(p => p.sessionId === selectedSession.id).reduce((a, b) => a + b.amount, 0) : 0)
+                  }
+                </div>
+              </div>
 
               {/* Fecha de pago */}
               <div>
@@ -487,30 +468,15 @@ export default function Payments() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {/* Monto que debe (solo en modo sesión) */}
-                {payMode === "sesion" && selectedSession && (
-                  <div>
-                    <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto que debe</label>
-                    <div className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg bg-[#F2F4F8] text-red-600 font-bold">
-                      S/ {selectedSession.fee - payments.filter(p => p.sessionId === selectedSession.id).reduce((a, b) => a + b.amount, 0)}
-                    </div>
-                  </div>
-                )}
-
-                {/* Monto recibido */}
-                <div className={payMode === "paquete" ? "col-span-2" : ""}>
-                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">
-                    {payMode === "paquete" ? "Monto total recibido" : "Monto recibido"}
-                  </label>
-                  <input 
-                    type="number" 
-                    value={payForm.amountReceived} 
-                    onChange={e => setPayForm(f => ({ ...f, amountReceived: +e.target.value }))}
-                    placeholder={payMode === "paquete" ? `Sugerido: S/ ${getPackageTotal()}` : ""}
-                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" 
-                  />
-                </div>
+              {/* Monto recibido */}
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto recibido (S/)</label>
+                <input 
+                  type="number" 
+                  value={payForm.amountReceived} 
+                  onChange={e => setPayForm(f => ({ ...f, amountReceived: +e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" 
+                />
               </div>
 
               {/* Método de pago */}
@@ -531,19 +497,22 @@ export default function Payments() {
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Estado</label>
                 <div className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                  payForm.amountReceived >= (payMode === "sesion" && selectedSession ? selectedSession.fee : getPackageTotal())
+                  payForm.amountReceived >= (selectedPackage 
+                    ? ((selectedPackage.total_amount || 0) - (selectedPackage.amount_paid || 0))
+                    : (selectedSession ? selectedSession.fee : 0))
                     ? "bg-emerald-100 text-emerald-700" 
                     : payForm.amountReceived > 0 
                       ? "bg-amber-100 text-amber-700" 
                       : "bg-red-100 text-red-700"
                 }`}>
-                  {payForm.amountReceived >= (payMode === "sesion" && selectedSession ? selectedSession.fee : getPackageTotal())
+                  {payForm.amountReceived >= (selectedPackage 
+                    ? ((selectedPackage.total_amount || 0) - (selectedPackage.amount_paid || 0))
+                    : (selectedSession ? selectedSession.fee : 0))
                     ? "Pagado" 
                     : payForm.amountReceived > 0 
                       ? "Parcial" 
                       : "Pendiente"}
                 </div>
-                <p className="text-[10px] text-[#6B7A94] mt-1">Se calcula automáticamente según el monto recibido</p>
               </div>
 
               {/* Notas */}
@@ -560,17 +529,17 @@ export default function Payments() {
 
             <div className="flex justify-end gap-2 px-6 pb-6">
               <button 
-                onClick={() => { setShowPayModal(false); setPayMode("sesion") }} 
+                onClick={() => { setShowPayModal(false); setSelectedSession(null); setSelectedPackage(null) }} 
                 className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]"
               >
                 Cancelar
               </button>
               <button 
                 onClick={handlePay} 
-                disabled={payForm.amountReceived <= 0 || (payMode === "paquete" && (!selectedPatientId || !selectedServiceId))}
+                disabled={payForm.amountReceived <= 0}
                 className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {payMode === "sesion" ? "Registrar pago" : "Registrar paquete"}
+                Registrar pago
               </button>
             </div>
           </div>
