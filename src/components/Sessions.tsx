@@ -164,7 +164,7 @@ export default function Sessions() {
             patient_id: form.patientId,
             service_id: form.serviceId,
             total_sessions: service.sessionCount,
-            used_sessions: 0,
+            used_sessions: 1,
             amount_paid: 0,
             total_amount: packagePrice,
             status: 'activo',
