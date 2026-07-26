@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react"
 import { Plus, X, ChevronDown, Search, Package } from "lucide-react"
-import { getSessions, createSession, updateSessionStatus, createPackageAndSessions } from "../lib/api/sessions"
+import { getSessions, createSession, updateSessionStatus } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
+import { supabase } from "../lib/supabaseClient"
 import { getPatientPackages, usePackageSession } from "../lib/api/payments"
 import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage } from "../types"
 
@@ -149,30 +150,58 @@ export default function Sessions() {
   const handleSave = async () => {
     try {
       if (formMode === "paquete") {
-        // Crear paquete y sesiones
+        // Crear paquete y la PRIMERA sesión del paquete
         const service = services.find(s => s.id === form.serviceId)
         if (!service) throw new Error("Selecciona un servicio")
         if (!service.sessionCount || service.sessionCount <= 1) throw new Error("El servicio seleccionado no es un paquete")
 
         if (packagePrice <= 0) throw new Error("El monto del paquete debe ser mayor a 0")
 
-        await createPackageAndSessions({
-          patientId: form.patientId!,
-          therapistId: form.therapistId!,
-          serviceId: form.serviceId!,
-          totalSessions: service.sessionCount,
-          baseDate: form.date!,
-          startTime: form.startTime!,
-          endTime: form.endTime!,
-          type: form.type!,
-          packagePrice: packagePrice,  // ← Monto total acordado del paquete
-        })
+        // 1. Crear el paquete en patient_packages
+        const { data: pkgData, error: pkgError } = await supabase
+          .from('patient_packages')
+          .insert({
+            patient_id: form.patientId,
+            service_id: form.serviceId,
+            total_sessions: service.sessionCount,
+            used_sessions: 0,
+            amount_paid: 0,
+            total_amount: packagePrice,
+            status: 'activo',
+          })
+          .select()
+          .single()
 
-        // Recargar sesiones para mostrar las nuevas
+        if (pkgError) throw pkgError
+        const packageId = pkgData.id
+
+        // 2. Crear solo la PRIMERA sesión del paquete
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('sessions')
+          .insert({
+            patient_id: form.patientId,
+            therapist_id: form.therapistId,
+            service_id: form.serviceId,
+            package_id: packageId,
+            date: form.date,
+            start_time: form.startTime,
+            end_time: form.endTime,
+            type: form.type,
+            status: 'Pendiente',
+            notes: `Sesión 1 de ${service.sessionCount} (paquete)`,
+            fee: 0,
+          })
+          .select('*, services!left(*)')
+          .single()
+
+        if (sessionError) throw sessionError
+
+        // Recargar sesiones para mostrar la nueva
         const refreshed = await getSessions()
         setSessionList(refreshed)
         setShowForm(false)
         setFormMode("sesion")
+        setPackagePrice(0)
         return
       }
 
@@ -471,7 +500,7 @@ export default function Sessions() {
                             placeholder={`Sugerido: S/ ${suggested}`}
                           />
                           <p className="text-[10px] text-[#6B7A94] mt-1">
-                            Puedes modificar el monto si hay descuento o promoción.
+                            Se creará el paquete + la primera sesión. Las demás sesiones se agregan manualmente desde "Nueva sesión" usando el paquete activo.
                           </p>
                         </div>
                       </div>
@@ -535,7 +564,7 @@ export default function Sessions() {
             <div className="flex justify-end gap-2 px-6 pb-6">
               <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
               <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">
-                {formMode === "paquete" ? "Crear paquete" : "Registrar sesión"}
+                {formMode === "paquete" ? "Crear paquete (1ª sesión)" : "Registrar sesión"}
               </button>
             </div>
           </div>
