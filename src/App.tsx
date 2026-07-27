@@ -10,6 +10,7 @@ import Attendance from "./components/Attendance"
 import Reports from "./components/Reports"
 import Login from "./components/Login"
 import Users from "./components/Users"
+import { useEffect } from "react"
 import { AuthProvider, useAuth } from "./lib/auth/AuthContext"
 
 
@@ -17,6 +18,34 @@ function AppContent() {
   const { session, profile, loading, signOut } = useAuth()
   const [page, setPage] = useState<Page>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
+
+  const allNavItems: { id: Page; permKey: string }[] = [
+  { id: "dashboard", permKey: "dashboard" },
+  { id: "patients", permKey: "patients" },
+  { id: "clinical", permKey: "clinical" },
+  { id: "sessions", permKey: "sessions" },
+  { id: "payments", permKey: "payments" },
+  { id: "agenda", permKey: "agenda" },
+  { id: "attendance", permKey: "attendance" },
+  { id: "reports", permKey: "reports" },
+  { id: "users", permKey: "users" },
+]
+
+  useEffect(() => {
+    if (!profile) return
+
+    const hasPermission = (profile.permissions as unknown as Record<string, boolean>)[page] ?? false
+
+    if (!hasPermission) {
+      const firstAllowed = allNavItems.find(
+        item => (profile.permissions as unknown as Record<string, boolean>)[item.permKey]
+      )?.id
+
+      if (firstAllowed && firstAllowed !== page) {
+        setPage(firstAllowed)
+      }
+    }
+  }, [profile, page])
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen text-[#6B7A94] text-sm">Cargando...</div>
