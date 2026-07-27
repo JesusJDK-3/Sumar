@@ -285,6 +285,7 @@ export default function Agenda() {
               <Row label="Fecha" value={selectedApt.date} />
               <Row label="Hora" value={`${selectedApt.startTime} - ${selectedApt.endTime}`} />
               <Row label="Tipo" value={selectedApt.type || ""} />
+              <Row label="N° Servicio" value={selectedApt.service ? `${selectedApt.service.number}. ${selectedApt.service.name}` : "—"} />
               <Row label="Estado" value={selectedApt.status} />
               <Row label="Notas" value={selectedApt.notes || "-"} />
             </div>
