@@ -69,14 +69,19 @@ export default function Payments() {
         .from('patient_packages')
         .select('*, services(*)')
         .eq('status', 'activo')
-        .eq('amount_paid', 0)
         .order('created_at', { ascending: false })
 
       if (pkgError) {
         console.error('Error cargando paquetes pendientes:', pkgError)
         setError('Error cargando paquetes: ' + pkgError.message)
       } else {
-        setPendingPackages(packagesData || [])
+        // Filtrar localmente los que aún deben dinero
+        const unpaid = (packagesData || []).filter((pkg: any) => {
+          const total = pkg.total_amount || 0
+          const paid = pkg.amount_paid || 0
+          return paid < total
+        })
+        setPendingPackages(unpaid)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar datos")
