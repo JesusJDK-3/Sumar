@@ -6,6 +6,7 @@ import { getPayments } from "../lib/api/payments"
 import { getAppointments } from "../lib/api/appointments"
 import { getTherapists } from "../lib/api/therapists"
 import { useAuth } from "../lib/auth/AuthContext"
+import { supabase } from "../lib/supabaseClient"
 import type { Patient, Session, Payment, Appointment, Therapist } from "../types"
 import { type Page } from "./Sidebar"
 
@@ -22,14 +23,31 @@ export default function Dashboard({ onNavigate }: Props) {
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pendingPackages, setPendingPackages] = useState<any[]>([])
 
   useEffect(() => {
     async function load() {
       try {
         setLoading(true)
         const [patientsData, sessionsData, paymentsData, appointmentsData, therapistsData] = await Promise.all([
-          getPatients(), getSessions(), getPayments(), getAppointments(), getTherapists(),
+            getPatients(), getSessions(), getPayments(), getAppointments(), getTherapists(),
         ])
+
+        // Cargar paquetes activos con deuda
+        const { data: packagesData, error: pkgError } = await supabase
+            .from('patient_packages')
+            .select('*, services(*)')
+            .eq('status', 'activo')
+            .order('created_at', { ascending: false })
+
+        if (!pkgError) {
+            const unpaidPkgs = (packagesData || []).filter((pkg: any) => {
+                const total = pkg.total_amount || 0
+                const paid = pkg.amount_paid || 0
+                return paid < total
+            })
+            setPendingPackages(unpaidPkgs)
+        }
         setPatients(patientsData)
         setSessions(sessionsData)
         setPayments(paymentsData)
@@ -61,7 +79,8 @@ export default function Dashboard({ onNavigate }: Props) {
       .filter(p => p.sessionId === s.id)
       .reduce((a, p) => a + p.amount, 0)
     return sum + Math.max(0, s.fee - paid)
-  }, 0)
+  }, 0) 
+  + pendingPackages.reduce((sum, pkg) => sum + ((pkg.total_amount || 0) - (pkg.amount_paid || 0)), 0)
   const monthIncome = payments.filter(p => (p.status === "Pagado" || p.status === "Parcial") && p.date.startsWith(currentMonth)).reduce((a, p) => a + p.amount, 0)
 
   const recentSessions = sessions.filter(s => s.status === "Realizada").slice(0, 5)
@@ -240,6 +259,25 @@ export default function Dashboard({ onNavigate }: Props) {
                 )
               })
             }
+            {pendingPackages.map(pkg => {
+                const patient = patients.find(p => p.id === pkg.patient_id)
+                const service = pkg.services
+                const remaining = (pkg.total_amount || 0) - (pkg.amount_paid || 0)
+                return (
+                  <div key={pkg.id} className="flex items-center gap-4 px-5 py-3">
+                    <AlertCircle size={16} className="text-amber-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-[#1A2332] truncate">
+                        {patient?.firstName} {patient?.lastName}
+                      </p>
+                      <p className="text-xs text-[#6B7A94]">
+                        Paquete: {service?.name} · Pagado: S/ {pkg.amount_paid || 0} / S/ {pkg.total_amount || 0}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-amber-600">S/ {remaining}</span>
+                  </div>
+                )
+              })}
           </div>
         </div>
       </div>
