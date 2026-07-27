@@ -99,7 +99,7 @@ export default function Reports() {
   }))
 
   const paymentByMethod = Object.entries(
-    payments.filter(p => p.status === "Pagado").reduce((acc, p) => {
+    payments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((acc, p) => {
       acc[p.method] = (acc[p.method] || 0) + p.amount
       return acc
     }, {} as Record<string, number>)

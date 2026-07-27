@@ -97,7 +97,7 @@ export default function Payments() {
   
   const stats = {
     ingresosMes: monthPayments.reduce((sum, p) => sum + p.amount, 0),
-    totalCobrado: payments.filter(p => p.status === "Pagado").reduce((sum, p) => sum + p.amount, 0),
+    totalCobrado: payments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((sum, p) => sum + p.amount, 0),
     pagosParciales: payments.filter(p => p.status === "Parcial").length,
     porCobrar: pendingSessions.reduce((sum, s) => sum + (s.fee - (payments.filter(pay => pay.sessionId === s.id).reduce((a, b) => a + b.amount, 0))), 0)
     + pendingPackages.reduce((sum, pkg) => sum + ((pkg.total_amount || 0) - (pkg.amount_paid || 0)), 0),
