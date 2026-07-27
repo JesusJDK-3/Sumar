@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient'
-import type { Payment, PaymentMethod, Session, Patient, Service } from '../../types'
+import type { Payment, PaymentMethod, Session, Patient } from '../../types'
 
 interface PaymentRow {
   id: string
@@ -208,7 +208,28 @@ export async function getPatientPackages(patientId: string) {
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return data || []
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    patientId: row.patient_id,
+    serviceId: row.service_id,
+    totalSessions: row.total_sessions,
+    usedSessions: row.used_sessions,
+    amountPaid: row.amount_paid,
+    totalAmount: row.total_amount,
+    paymentId: row.payment_id,
+    status: row.status,
+    createdAt: row.created_at,
+    service: row.services ? {
+      id: row.services.id,
+      number: row.services.number,
+      name: row.services.name,
+      description: row.services.description,
+      defaultFee: row.services.default_fee,
+      sessionCount: row.services.session_count ?? 1,
+      createdAt: row.services.created_at,
+    } : undefined,
+  }))
 }
 
 // NUEVO: Crear un paquete para un paciente (se llama después de registrar el pago del paquete)

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { X, Search, CreditCard, Banknote, Smartphone, Package, Calendar } from "lucide-react"
+import { X, Search, CreditCard, Banknote, Smartphone, Package } from "lucide-react"
 import { getPayments, getSessionsWithoutPayment, createPayment } from "../lib/api/payments"
 import { getPatients } from "../lib/api/patients"
 import { getServices } from "../lib/api/services"
@@ -83,7 +83,6 @@ export default function Payments() {
   }
 
   const getPatient = (id: string) => patients.find(p => p.id === id)
-  const getService = (id: string) => services.find(s => s.id === id)
 
   // KPIs
   const currentMonth = new Date().toISOString().slice(0, 7)

@@ -176,7 +176,7 @@ export default function Sessions() {
         const packageId = pkgData.id
 
         // 2. Crear solo la PRIMERA sesión del paquete
-        const { data: sessionData, error: sessionError } = await supabase
+        const { error: sessionError } = await supabase
           .from('sessions')
           .insert({
             patient_id: form.patientId,
@@ -195,6 +195,8 @@ export default function Sessions() {
           .single()
 
         if (sessionError) throw sessionError
+        // Incrementar contador del paquete porque la 1ª sesión ya se usó
+        await usePackageSession(packageId)
 
         // Recargar sesiones para mostrar la nueva
         const refreshed = await getSessions()
@@ -456,7 +458,7 @@ export default function Sessions() {
                     <p className="text-xs font-semibold text-emerald-700">Paquete activo detectado</p>
                     <p className="text-[11px] text-emerald-600 mt-0.5">
                       Este paciente tiene un paquete de {activePackage.totalSessions} sesiones. 
-                      Usadas: {activePackage.used_sessions || 0} · Restantes: {(activePackage.total_sessions || 0) - (activePackage.used_sessions || 0)}
+                      Usadas: {activePackage.usedSessions || 0} · Restantes: {(activePackage.totalSessions || 0) - (activePackage.usedSessions || 0)}
                     </p>
                     <p className="text-[11px] text-emerald-600 mt-1 font-medium">
                       Esta sesión se marcará como "Cubierta por paquete" (S/ 0)
