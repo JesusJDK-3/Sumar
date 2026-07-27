@@ -89,7 +89,7 @@ export default function Sessions() {
       try {
         const packages = await getPatientPackages(form.patientId!)
         const pkg = packages.find((p: any) => 
-          p.service_id === form.serviceId && p.status === 'activo'
+          p.serviceId === form.serviceId && p.status === 'activo'
         )
         setActivePackage(pkg || null)
       } catch (err) {
