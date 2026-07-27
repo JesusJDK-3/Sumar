@@ -48,6 +48,7 @@ export default function Sessions() {
     fee: 120,
   })
   const [activePackage, setActivePackage] = useState<PatientPackage | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -148,6 +149,9 @@ export default function Sessions() {
     .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
 
   const handleSave = async () => {
+    if (isSubmitting) return   // ← BLOQUEO: si ya está guardando, no hace nada
+    setIsSubmitting(true)
+    setError(null)
     try {
       if (formMode === "paquete") {
         // Crear paquete y la PRIMERA sesión del paquete
@@ -232,6 +236,8 @@ export default function Sessions() {
       setActivePackage(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar sesión")
+    }finally {
+    setIsSubmitting(false)   // ← Se libera al final, sea éxito o error
     }
   }
 
@@ -565,8 +571,19 @@ export default function Sessions() {
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
               <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">
-                {formMode === "paquete" ? "Crear paquete (1ª sesión)" : "Registrar sesión"}
+              <button 
+                onClick={handleSave} 
+                disabled={isSubmitting}
+                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Guardando...
+                  </span>
+                ) : (
+                  formMode === "paquete" ? "Crear paquete (1ª sesión)" : "Registrar sesión"
+                )}
               </button>
             </div>
           </div>
