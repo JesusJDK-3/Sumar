@@ -45,6 +45,7 @@ export default function Payments() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
   const [payForm, setPayForm] = useState(defaultPayForm)
+  const [maxPayAmount, setMaxPayAmount] = useState(0)
 
   useEffect(() => {
     loadData()
@@ -177,6 +178,7 @@ export default function Payments() {
       .filter(p => p.sessionId === session.id)
       .reduce((sum, p) => sum + p.amount, 0)
     const remaining = session.fee - paid
+    setMaxPayAmount(remaining)  // ← NUEVO
     setPayForm({
       ...defaultPayForm,
       amountReceived: remaining,
@@ -189,9 +191,11 @@ export default function Payments() {
     setSelectedPackage(pkg)
     const total = pkg.total_amount || 0
     const paid = pkg.amount_paid || 0
+    const remaining = total - paid
+    setMaxPayAmount(remaining)  // ← NUEVO
     setPayForm({
       ...defaultPayForm,
-      amountReceived: total - paid,
+      amountReceived: remaining,
     })
     setShowPayModal(true)
   }
@@ -479,13 +483,23 @@ export default function Payments() {
               {/* Monto recibido */}
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Monto recibido (S/)</label>
-                <input 
-                  type="number" 
-                  value={payForm.amountReceived} 
-                  onChange={e => setPayForm(f => ({ ...f, amountReceived: +e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" 
-                />
+                  <input 
+                    type="number" 
+                    min={1}
+                    max={maxPayAmount}
+                    value={payForm.amountReceived} 
+                    onChange={e => {
+                      const val = +e.target.value
+                      setPayForm(f => ({ ...f, amountReceived: val }))
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" 
+                  />
               </div>
+              {payForm.amountReceived > maxPayAmount && (
+                <p className="text-xs text-red-600 mt-1">
+                  El monto no puede exceder S/ {maxPayAmount}
+                </p>
+              )}
 
               {/* Método de pago */}
               <div>
@@ -544,7 +558,7 @@ export default function Payments() {
               </button>
               <button 
                 onClick={handlePay} 
-                disabled={payForm.amountReceived <= 0}
+                disabled={payForm.amountReceived <= 0 || payForm.amountReceived > maxPayAmount}
                 className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Registrar pago
