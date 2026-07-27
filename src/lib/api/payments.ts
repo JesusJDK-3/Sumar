@@ -136,6 +136,7 @@ export async function createPayment(params: {
   serviceId?: string
   sessionCount?: number
   amountReceived: number
+  totalAmount?: number   // ← NUEVO
   method: PaymentMethod
   date: string
   notes?: string
@@ -149,8 +150,7 @@ export async function createPayment(params: {
   const isPackage = !!params.serviceId && !!params.sessionCount && params.sessionCount > 1
 
   if (isPackage) {
-    // Para paquetes, el monto total es lo que se recibe (no hay fee de sesión individual)
-    fee = params.amountReceived
+    fee = params.totalAmount || params.amountReceived
   } else {
     // Para sesiones individuales, consultar el fee de la sesión
     if (!params.sessionId) throw new Error('Se requiere sessionId para pagos por sesión')

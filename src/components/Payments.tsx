@@ -137,13 +137,14 @@ export default function Payments() {
         // Crear el registro de pago
         // EN handlePay, modo paquete:
         const payment = await createPayment({
-          patientId: selectedPackage.patient_id,
-          serviceId: selectedPackage.service_id,
-          sessionCount: selectedPackage.total_sessions, // ← usar el del paquete, no del servicio
-          amountReceived: payForm.amountReceived,
-          method: payForm.method,
-          date: payForm.date,
-          notes: payForm.notes || `Pago de paquete ${service.name}`,
+            patientId: selectedPackage.patient_id,
+            serviceId: selectedPackage.service_id,
+            sessionCount: selectedPackage.total_sessions,
+            amountReceived: payForm.amountReceived,
+            totalAmount: selectedPackage.total_amount || 0,  // ← NUEVO
+            method: payForm.method,
+            date: payForm.date,
+            notes: payForm.notes || `Pago de paquete ${service.name}`,
         })
 
         // Actualizar el paquete con el monto pagado
