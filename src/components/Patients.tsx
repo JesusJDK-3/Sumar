@@ -40,6 +40,7 @@ export default function Patients() {
   const [selected, setSelected] = useState<Patient | null>(null)
   const [form, setForm] = useState(emptyPatient)
   const [editing, setEditing] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -67,6 +68,10 @@ export default function Patients() {
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
 
   const handleSave = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setError(null)
+
     try {
       if (editing && selected) {
         const updated = await updatePatient(selected.id, form)
@@ -81,6 +86,8 @@ export default function Patients() {
       setEditing(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar paciente")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -356,11 +363,19 @@ export default function Patients() {
                 Cancelar
               </button>
               <button
-                onClick={handleSave}
-                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors"
-              >
-                {editing ? "Guardar cambios" : "Registrar paciente"}
-              </button>
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Guardando...
+                </span>
+              ) : (
+                editing ? "Guardar cambios" : "Registrar paciente"
+              )}
+            </button>
             </div>
           </div>
         </div>
