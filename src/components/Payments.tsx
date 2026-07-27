@@ -71,8 +71,11 @@ export default function Payments() {
         .eq('status', 'activo')
         .eq('amount_paid', 0)
         .order('created_at', { ascending: false })
-      
-      if (!pkgError) {
+
+      if (pkgError) {
+        console.error('Error cargando paquetes pendientes:', pkgError)
+        setError('Error cargando paquetes: ' + pkgError.message)
+      } else {
         setPendingPackages(packagesData || [])
       }
     } catch (err) {
