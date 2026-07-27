@@ -68,7 +68,6 @@ export default function Payments() {
       const { data: packagesData, error: pkgError } = await supabase
         .from('patient_packages')
         .select('*, services(*)')
-        .eq('status', 'activo')
         .order('created_at', { ascending: false })
 
       if (pkgError) {
