@@ -84,9 +84,7 @@ export default function UsersPage() {
     try {
       setLoading(true)
       const { data, error } = await supabase
-        .from('profiles_with_email')
-        .select('id, full_name, role, permissions, created_at, email')
-        .order('created_at', { ascending: false })
+        .rpc('get_users_with_email') as { data: any[] | null; error: any }
 
       if (error) throw error
 
