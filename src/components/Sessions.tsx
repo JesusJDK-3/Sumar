@@ -319,7 +319,7 @@ export default function Sessions() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#E2E7EF]">
-                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Monto", "Estado", ""].map(h => (
+                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Monto","Notas", "Estado", ""].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -364,6 +364,9 @@ export default function Sessions() {
                       ) : (
                         `S/ ${s.fee}`
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-[#6B7A94] text-xs max-w-[150px] truncate" title={s.notes || ""}>
+                      {s.notes || "—"}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
