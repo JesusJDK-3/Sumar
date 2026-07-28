@@ -253,6 +253,44 @@ export default function Sessions() {
     canceladas: sessionList.filter(s => s.status === "Cancelada").length,
   }
 
+  function resetForm() {
+    const today = new Date().toISOString().split("T")[0]
+    
+    // Buscar última sesión de hoy para sugerir siguiente hora
+    const todaySessions = sessionList
+      .filter(s => s.date === today)
+      .sort((a, b) => b.endTime.localeCompare(a.endTime))
+    
+    let startTime = "09:00"
+    let endTime = "10:00"
+    
+    if (todaySessions.length > 0) {
+      const last = todaySessions[0]
+      const [h, m] = last.endTime.split(":").map(Number)
+      const nextH = h + 1
+      if (nextH < 18) {
+        startTime = `${String(nextH).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+        endTime = `${String(nextH + 1).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+      }
+    }
+
+    setFormMode("sesion")
+    setActivePackage(null)
+    setPackagePrice(0)
+    setForm({
+      patientId: patients[0]?.id,
+      therapistId: therapists[0]?.id,
+      serviceId: services[0]?.id,
+      date: today,
+      startTime,
+      endTime,
+      type: "Individual",
+      status: "Pendiente",
+      notes: "",
+      fee: services[0]?.defaultFee || 120,
+    })
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando sesiones...</div>
   }
@@ -291,7 +329,7 @@ export default function Sessions() {
             </select>
             <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
           </div>
-          <button onClick={() => setShowForm(true)}
+          <button onClick={() => { resetForm(); setShowForm(true) }}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors">
             <Plus size={14} /> Nueva sesión
           </button>
