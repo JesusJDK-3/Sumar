@@ -117,21 +117,21 @@ export default function Patients() {
       {/* List panel */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-3 p-5 pb-4 bg-white border-b border-[#E2E7EF]">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 lg:p-5 pb-4 bg-white border-b border-[#E2E7EF]">
           <div>
             <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Pacientes
             </h1>
             <p className="text-xs text-[#6B7A94]">{filtered.length} de {patientList.length} registros</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <div className="relative flex-1 min-w-[140px] max-w-[200px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7A94]" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar paciente..."
-                className="pl-8 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-52 bg-[#F2F4F8]"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]"
               />
             </div>
             <div className="relative">
@@ -148,7 +148,7 @@ export default function Patients() {
             </div>
             <button
               onClick={openNew}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0"
             >
               <Plus size={15} /> Nuevo paciente
             </button>
