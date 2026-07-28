@@ -303,20 +303,19 @@ export default function Sessions() {
         </div>
       )}
       {/* Header */}
-      <div className="bg-white border-b border-[#E2E7EF] px-6 py-4 flex items-center justify-between">
+      <div className="bg-white border-b border-[#E2E7EF] px-4 lg:px-6 py-4 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-0 lg:justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Sesiones</h1>
-          
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[120px] max-w-[200px]">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B7A94]" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-              className="pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-44 bg-[#F2F4F8]" />
+              className="w-full pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]" />
           </div>
-          <div className="relative">
+          <div className="relative flex-1 min-w-[140px] max-w-[220px]">
             <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
-              className="appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
+              className="w-full appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8] truncate">
               <option value="Todos">Todos los servicios</option>
               {services.map(s => <option key={s.id} value={s.id}>{s.number}. {s.name}</option>)}
             </select>
@@ -330,7 +329,7 @@ export default function Sessions() {
             <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
           </div>
           <button onClick={() => { resetForm(); setShowForm(true) }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0">
             <Plus size={14} /> Nueva sesión
           </button>
         </div>
