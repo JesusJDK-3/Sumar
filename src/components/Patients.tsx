@@ -108,7 +108,7 @@ export default function Patients() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col lg:flex-row h-full">
       {error && (
         <div className="fixed top-4 right-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg z-50">
           {error}
@@ -157,8 +157,8 @@ export default function Patients() {
 
         {/* Table */}
         <div className="flex-1 overflow-auto p-5">
-          <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
+          <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-[#E2E7EF]">
                   {["Código", "Paciente", "Edad", "Diagnóstico", "Terapeuta", "Estado", ""].map(h => (
@@ -223,7 +223,7 @@ export default function Patients() {
 
       {/* Detail panel */}
       {selected && !showForm && (
-        <div className="w-80 bg-white border-l border-[#E2E7EF] flex flex-col overflow-hidden">
+        <div className="w-full lg:w-80 bg-white border-l border-[#E2E7EF] flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
             <h3 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Ficha del paciente

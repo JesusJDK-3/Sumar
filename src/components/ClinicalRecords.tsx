@@ -136,7 +136,7 @@ export default function ClinicalRecords() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col lg:flex-row h-full">
       {error && (
         <div className="fixed top-4 right-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg z-50">
           {error}
@@ -298,7 +298,7 @@ export default function ClinicalRecords() {
           </div>
 
           {selectedRecord && (
-            <div className="w-80 bg-white border-l border-[#E2E7EF] p-5 overflow-y-auto shrink-0">
+            <div className="w-full lg:w-80 bg-white border-l border-[#E2E7EF] p-5 overflow-y-auto shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Sesión #{selectedRecord.sessionNumber}

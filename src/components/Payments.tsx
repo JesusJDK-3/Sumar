@@ -294,10 +294,10 @@ export default function Payments() {
 
       {/* Tabla */}
       <div className="flex-1 overflow-auto p-5">
-        <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm">
+        <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
           {viewMode === "historial" ? (
             // HISTORIAL DE PAGOS
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-[#E2E7EF]">
                   {["Fecha", "Paciente", "Tipo", "Método", "Monto", "Estado", "Notas"].map(h => (

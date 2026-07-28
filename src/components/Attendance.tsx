@@ -155,8 +155,8 @@ export default function Attendance() {
 
       {/* Attendance list */}
       <div className="flex-1 overflow-auto p-5 pt-3">
-        <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="border-b border-[#E2E7EF]">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">

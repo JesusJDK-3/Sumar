@@ -18,6 +18,7 @@ function AppContent() {
   const { session, profile, loading, signOut } = useAuth()
   const [page, setPage] = useState<Page>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const allNavItems: { id: Page; permKey: string }[] = [
   { id: "dashboard", permKey: "dashboard" },
@@ -69,19 +70,48 @@ function AppContent() {
     }
   }
 
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F2F4F8]">
-      <Sidebar
-        current={page}
-        onChange={setPage}
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(c => !c)}
-        userName={profile?.fullName}
-        userRole={profile?.role}
-        onSignOut={signOut}
-      />
-      <main className="flex-1 overflow-auto">
-        {renderPage()}
+    <div className="flex h-screen overflow-hidden bg-[#F2F4F8] relative">
+      {/* Overlay mobile */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden" 
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`
+        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-200
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <Sidebar
+          current={page}
+          onChange={(p) => { setPage(p); setMobileMenuOpen(false) }}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(c => !c)}
+          userName={profile?.fullName}
+          userRole={profile?.role}
+          onSignOut={signOut}
+        />
+      </div>
+
+      {/* Main */}
+      <main className="flex-1 overflow-auto w-full">
+        {/* Botón hamburguesa mobile */}
+        <button 
+          onClick={() => setMobileMenuOpen(true)}
+          className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-white rounded-lg shadow-md"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+          </svg>
+        </button>
+        
+        <div className="pt-14 lg:pt-0">
+          {renderPage()}
+        </div>
       </main>
     </div>
   )
