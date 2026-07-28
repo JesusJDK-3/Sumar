@@ -334,6 +334,16 @@ export default function Patients() {
               <FormField label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} />
               <FormField label="Dirección" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} />
               <FormField label="Nombre del padre/apoderado" value={form.emergencyContact} onChange={v => setForm(f => ({ ...f, emergencyContact: v }))} />
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Diagnóstico</label>
+                <textarea
+                  value={form.diagnosis}
+                  onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] resize-none"
+                  placeholder="Opcional"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Terapeuta asignado</label>
                 <select
