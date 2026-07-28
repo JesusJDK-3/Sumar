@@ -74,6 +74,7 @@ export default function UsersPage() {
     fullName: "",
     role: "psicologia" as UserRole,
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     loadUsers()
@@ -105,6 +106,8 @@ export default function UsersPage() {
   }
 
   async function createUser() {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     try {
       setLoading(true)
       const { data, error } = await supabase.functions.invoke('create-user', {
@@ -125,11 +128,13 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear usuario")
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
   async function updateUser() {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     try {
       setLoading(true)
       const updates: Record<string, unknown> = {
@@ -150,11 +155,13 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar usuario")
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
   async function updateUserPermissions(userId: string, permissions: UserPermissions) {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     try {
       const { error } = await supabase
         .from('profiles')
@@ -166,6 +173,8 @@ export default function UsersPage() {
       setSelectedUser(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar permisos")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -311,8 +320,10 @@ export default function UsersPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg">Cancelar</button>
-              <button onClick={createUser} disabled={loading} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] disabled:opacity-50">Crear usuario</button>
-            </div>
+              <button onClick={createUser} disabled={loading || isSubmitting} className="... disabled:opacity-50">
+                {isSubmitting ? "Creando..." : "Crear usuario"}
+              </button>
+            </div>  
           </div>
         </div>
       )}
@@ -358,7 +369,9 @@ export default function UsersPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg">Cancelar</button>
-              <button onClick={updateUser} disabled={loading} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] disabled:opacity-50">Guardar cambios</button>
+              <button onClick={updateUser} disabled={loading || isSubmitting} className="... disabled:opacity-50">
+                {isSubmitting ? "Guardando..." : "Guardar cambios"}
+              </button>
             </div>
           </div>
         </div>
@@ -393,11 +406,8 @@ export default function UsersPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setSelectedUser(null)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg">Cancelar</button>
-              <button
-                onClick={() => updateUserPermissions(selectedUser.id, selectedUser.permissions)}
-                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14]"
-              >
-                Guardar cambios
+              <button onClick={() => updateUserPermissions(selectedUser.id, selectedUser.permissions)} disabled={isSubmitting} className="... disabled:opacity-50">
+                {isSubmitting ? "Guardando..." : "Guardar cambios"}
               </button>
             </div>
           </div>

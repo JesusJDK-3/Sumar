@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useAuth } from "../lib/auth/AuthContext"
-import { Heart, Shield, Users } from "lucide-react"
+import { Heart, Shield, Users, Eye, EyeOff } from "lucide-react"
 import sumarfondo from "../imports/sumar_fondo.jpg"; 
 import sumarIcon from "../imports/sumar_icon.png";
+
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -10,6 +11,7 @@ export default function Login() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -128,14 +130,23 @@ export default function Login() {
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1.5">
                   Contraseña
                 </label>
+                <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E2E7EF] rounded-xl outline-none focus:border-[#E8481E] focus:ring-2 focus:ring-[#E8481E]/10 transition-all bg-[#F8F9FC]/50"
+                  className="w-full pl-3.5 pr-10 py-2.5 text-sm border border-[#E2E7EF] rounded-xl outline-none focus:border-[#E8481E] focus:ring-2 focus:ring-[#E8481E]/10 transition-all bg-[#F8F9FC]/50"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9AA5BE] hover:text-[#6B7A94] transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               </div>
 
               <div className="flex items-center justify-between">
