@@ -112,7 +112,7 @@ export default function Payments() {
     const matchSearch = !search || name.includes(search.toLowerCase()) || p.date.includes(search)
     
     if (kpiFilter === "todos") return matchSearch
-    if (kpiFilter === "cobrado") return p.status === "Pagado" && matchSearch
+    if (kpiFilter === "cobrado") return (p.status === "Pagado" || p.status === "Parcial") && matchSearch
     if (kpiFilter === "parciales") return p.status === "Parcial" && matchSearch
     if (kpiFilter === "ingresos") return p.date.startsWith(currentMonth) && matchSearch
     return matchSearch
