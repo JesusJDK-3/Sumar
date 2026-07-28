@@ -145,6 +145,21 @@ export async function getSessions(): Promise<Session[]> {
 }
 
 export async function createSession(session: Omit<Session, 'id'>): Promise<Session> {
+  // Validar que no exista una sesión activa (no cancelada) en el mismo horario para este terapeuta
+  const { data: existing, error: checkError } = await supabase
+    .from('sessions')
+    .select('id, status')
+    .eq('therapist_id', session.therapistId)
+    .eq('date', session.date)
+    .neq('status', 'Cancelada')
+    .or(`and(start_time.lt.${session.endTime},end_time.gt.${session.startTime})`)
+
+  if (checkError) throw checkError
+
+  if (existing && existing.length > 0) {
+    throw new Error('Conflicto de horario: el terapeuta ya tiene una sesión en esa fecha y hora.')
+  }
+
   const { data, error } = await supabase
     .from('sessions')
     .insert(sessionToRow(session))
