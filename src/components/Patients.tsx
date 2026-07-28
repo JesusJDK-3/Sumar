@@ -327,10 +327,12 @@ export default function Patients() {
                 >
                   <option value="M">Masculino</option>
                   <option value="F">Femenino</option>
-                  <option value="Otro">Otro</option>
                 </select>
               </div>
               <FormField label="Teléfono" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} />
+              <FormField label="DNI" value={form.dni} onChange={v => setForm(f => ({ ...f, dni: v }))} />
+              <FormField label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} />
+              <FormField label="Dirección" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} />
               <FormField label="Nombre del padre/apoderado" value={form.emergencyContact} onChange={v => setForm(f => ({ ...f, emergencyContact: v }))} />
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Terapeuta asignado</label>
