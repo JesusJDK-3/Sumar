@@ -153,70 +153,62 @@ export default function Sessions() {
     setIsSubmitting(true)
     setError(null)
     try {
-      if (formMode === "paquete") {
-        // Crear paquete y la PRIMERA sesión del paquete
-        const service = services.find(s => s.id === form.serviceId)
-        if (!service) throw new Error("Selecciona un servicio")
-        if (!service.sessionCount || service.sessionCount <= 1) throw new Error("El servicio seleccionado no es un paquete")
+          if (formMode === "paquete") {
+            const service = services.find(s => s.id === form.serviceId)
+            if (!service) throw new Error("Selecciona un servicio")
+            if (!service.sessionCount || service.sessionCount <= 1) throw new Error("El servicio seleccionado no es un paquete")
+            if (packagePrice <= 0) throw new Error("El monto del paquete debe ser mayor a 0")
 
-        if (packagePrice <= 0) throw new Error("El monto del paquete debe ser mayor a 0")
+            // 1. Crear la PRIMERA sesión (valida horario automáticamente)
+            const createdSession = await createSession({
+              patientId: form.patientId!,
+              therapistId: form.therapistId!,
+              serviceId: form.serviceId,
+              date: form.date!,
+              startTime: form.startTime!,
+              endTime: form.endTime!,
+              type: form.type!,
+              status: 'Pendiente',
+              notes: `Sesión 1 de ${service.sessionCount} (paquete)`,
+              fee: 0,
+            })
 
-        // 1. Crear el paquete en patient_packages
-        const { data: pkgData, error: pkgError } = await supabase
-          .from('patient_packages')
-          .insert({
-            patient_id: form.patientId,
-            service_id: form.serviceId,
-            total_sessions: service.sessionCount,
-            used_sessions: 0,
-            amount_paid: 0,
-            total_amount: packagePrice,
-            status: 'activo',
-          })
-          .select()
-          .single()
+            // 2. Crear el paquete con 1 sesión ya usada
+            const { data: pkgData, error: pkgError } = await supabase
+              .from('patient_packages')
+              .insert({
+                patient_id: form.patientId,
+                service_id: form.serviceId,
+                total_sessions: service.sessionCount,
+                used_sessions: 1,
+                amount_paid: 0,
+                total_amount: packagePrice,
+                status: 'activo',
+              })
+              .select()
+              .single()
 
-        if (pkgError) throw pkgError
-        const packageId = pkgData.id
+            if (pkgError) throw pkgError
 
-        // 2. Crear solo la PRIMERA sesión del paquete
-        const { error: sessionError } = await supabase
-          .from('sessions')
-          .insert({
-            patient_id: form.patientId,
-            therapist_id: form.therapistId,
-            service_id: form.serviceId,
-            package_id: packageId,
-            date: form.date,
-            start_time: form.startTime,
-            end_time: form.endTime,
-            type: form.type,
-            status: 'Pendiente',
-            notes: `Sesión 1 de ${service.sessionCount} (paquete)`,
-            fee: 0,
-          })
-          .select('*, services!left(*)')
-          .single()
+            // 3. Asociar sesión al paquete
+            await supabase
+              .from('sessions')
+              .update({ package_id: pkgData.id })
+              .eq('id', createdSession.id)
 
-        if (sessionError) throw sessionError
-        // Incrementar contador del paquete porque la 1ª sesión ya se usó
-        await usePackageSession(packageId)
-
-        // Recargar sesiones para mostrar la nueva
-        const refreshed = await getSessions()
-        setSessionList(refreshed)
-        setShowForm(false)
-        setFormMode("sesion")
-        setPackagePrice(0)
-        return
-      }
+            const refreshed = await getSessions()
+            setSessionList(refreshed)
+            setShowForm(false)
+            setFormMode("sesion")
+            setPackagePrice(0)
+            return
+          }
 
       // Sesión individual
       let sessionFee = form.fee || 120
       
       if (activePackage) {
         sessionFee = 0
-        await usePackageSession(activePackage.id)
       }
 
       const created = await createSession({
@@ -231,6 +223,10 @@ export default function Sessions() {
         notes: form.notes || "",
         fee: sessionFee,
       })
+
+      if (activePackage) {
+        await usePackageSession(activePackage.id)
+      }
       setSessionList(prev => [created, ...prev])
       setShowForm(false)
       setActivePackage(null)
