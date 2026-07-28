@@ -61,6 +61,7 @@ export default function Agenda() {
     dni: "",
     phone: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -125,6 +126,10 @@ export default function Agenda() {
   }
 
   const handleSave = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setError(null)
+
     try {
       const created = await createAppointment({
         patientId: form.patientId!,
@@ -142,6 +147,8 @@ export default function Agenda() {
       setShowQuickPatient(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al agendar cita")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -453,7 +460,20 @@ export default function Agenda() {
 
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => { setShowForm(false); setShowQuickPatient(false) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Agendar cita</button>
+              <button
+                onClick={handleSave}
+                disabled={isSubmitting}
+                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Guardando...
+                  </span>
+                ) : (
+                  "Agendar cita"
+                )}
+              </button>
             </div>
           </div>
         </div>

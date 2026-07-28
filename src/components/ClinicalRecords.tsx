@@ -27,6 +27,7 @@ export default function ClinicalRecords() {
   const [form, setForm] = useState<Partial<ClinicalRecord>>({})
   const [sessionsWithoutRecord, setSessionsWithoutRecord] = useState<Session[]>([])
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -98,6 +99,10 @@ export default function ClinicalRecords() {
   }
 
   const handleSave = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setError(null)
+
     try {
       const created = await createClinicalRecord({
         patientId: form.patientId!,
@@ -118,6 +123,8 @@ export default function ClinicalRecords() {
       setSelectedSession(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar registro")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -398,7 +405,20 @@ export default function ClinicalRecords() {
             </div>
             <div className="flex justify-end gap-2 px-6 pb-6">
               <button onClick={() => { setShowForm(false); setSelectedSession(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
-              <button onClick={handleSave} className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors">Guardar ficha clínica</button>
+              <button
+                onClick={handleSave}
+                disabled={isSubmitting}
+                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Guardando...
+                  </span>
+                ) : (
+                  "Guardar ficha clínica"
+                )}
+              </button>
             </div>
           </div>
         </div>

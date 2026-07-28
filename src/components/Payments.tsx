@@ -45,6 +45,7 @@ export default function Payments() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
   const [payForm, setPayForm] = useState(defaultPayForm)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPayAmount, setMaxPayAmount] = useState(0)
 
   useEffect(() => {
@@ -118,9 +119,12 @@ export default function Payments() {
   })
 
   const handlePay = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setError(null)
+
     try {
       if (selectedSession) {
-        // Pago de sesión individual
         await createPayment({
           sessionId: selectedSession.id,
           patientId: selectedSession.patientId,
@@ -130,24 +134,20 @@ export default function Payments() {
           notes: payForm.notes,
         })
       } else if (selectedPackage) {
-        // Pago de paquete existente
         const service = services.find(s => s.id === selectedPackage.service_id)
         if (!service) throw new Error("Servicio no encontrado")
 
-        // Crear el registro de pago
-        // EN handlePay, modo paquete:
         const payment = await createPayment({
-            patientId: selectedPackage.patient_id,
-            serviceId: selectedPackage.service_id,
-            sessionCount: selectedPackage.total_sessions,
-            amountReceived: payForm.amountReceived,
-            totalAmount: selectedPackage.total_amount || 0,  // ← NUEVO
-            method: payForm.method,
-            date: payForm.date,
-            notes: payForm.notes || `Pago de paquete ${service.name}`,
+          patientId: selectedPackage.patient_id,
+          serviceId: selectedPackage.service_id,
+          sessionCount: selectedPackage.total_sessions,
+          amountReceived: payForm.amountReceived,
+          totalAmount: selectedPackage.total_amount || 0,
+          method: payForm.method,
+          date: payForm.date,
+          notes: payForm.notes || `Pago de paquete ${service.name}`,
         })
 
-        // Actualizar el paquete con el monto pagado
         const newAmountPaid = (selectedPackage.amount_paid || 0) + payForm.amountReceived
         const { error: updateError } = await supabase
           .from('patient_packages')
@@ -168,6 +168,8 @@ export default function Payments() {
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrar pago")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -558,10 +560,17 @@ export default function Payments() {
               </button>
               <button 
                 onClick={handlePay} 
-                disabled={payForm.amountReceived <= 0 || payForm.amountReceived > maxPayAmount}
+                disabled={payForm.amountReceived <= 0 || payForm.amountReceived > maxPayAmount || isSubmitting}
                 className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Registrar pago
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Procesando...
+                  </span>
+                ) : (
+                  "Registrar pago"
+                )}
               </button>
             </div>
           </div>
