@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Plus, X, ChevronDown, Search, Package } from "lucide-react"
 import { getSessions, createSession, updateSessionStatus } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
@@ -49,6 +49,7 @@ export default function Sessions() {
   })
   const [activePackage, setActivePackage] = useState<PatientPackage | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSavingRef = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -149,7 +150,8 @@ export default function Sessions() {
     .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
 
   const handleSave = async () => {
-    if (isSubmitting) return   // ← BLOQUEO: si ya está guardando, no hace nada
+    if (isSavingRef.current) return   // ← BLOQUEO síncrono: no depende del re-render
+    isSavingRef.current = true
     setIsSubmitting(true)
     setError(null)
     try {
@@ -233,6 +235,7 @@ export default function Sessions() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar sesión")
     }finally {
+    isSavingRef.current = false
     setIsSubmitting(false)   // ← Se libera al final, sea éxito o error
     }
   }

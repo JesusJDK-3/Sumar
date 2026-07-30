@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
 import { getAppointments, createAppointment, updateAppointmentStatus } from "../lib/api/appointments"
 import { getPatients, createPatient } from "../lib/api/patients"
@@ -62,6 +62,8 @@ export default function Agenda() {
     phone: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSavingRef = useRef(false)
+  const isSavingQuickPatientRef = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -94,6 +96,8 @@ export default function Agenda() {
   const week = getWeekDates(currentWeek)
 
   const handleQuickPatient = async () => {
+    if (isSavingQuickPatientRef.current) return
+    isSavingQuickPatientRef.current = true
     try {
       const code = generatePatientCode()
       const newPatient = await createPatient({
@@ -122,11 +126,14 @@ export default function Agenda() {
       setQuickPatient({ firstName: "", lastName: "", dni: "", phone: "" })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear paciente")
+    } finally {
+      isSavingQuickPatientRef.current = false
     }
   }
 
   const handleSave = async () => {
-    if (isSubmitting) return
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     setError(null)
 
@@ -148,6 +155,7 @@ export default function Agenda() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al agendar cita")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }

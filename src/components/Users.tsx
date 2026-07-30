@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Plus, X, Pencil } from "lucide-react"
 import { supabase } from "../lib/supabaseClient"
 import { useAuth } from "../lib/auth/AuthContext"
@@ -75,6 +75,7 @@ export default function UsersPage() {
     role: "psicologia" as UserRole,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSavingRef = useRef(false)
 
   useEffect(() => {
     loadUsers()
@@ -104,7 +105,8 @@ export default function UsersPage() {
   }
 
   async function createUser() {
-    if (isSubmitting) return
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     try {
       setLoading(true)
@@ -126,12 +128,14 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear usuario")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }
 
   async function updateUser() {
-    if (isSubmitting) return
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     try {
       setLoading(true)
@@ -153,12 +157,14 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar usuario")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }
 
   async function updateUserPermissions(userId: string, permissions: UserPermissions) {
-    if (isSubmitting) return
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     try {
       const { error } = await supabase
@@ -172,6 +178,7 @@ export default function UsersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar permisos")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }

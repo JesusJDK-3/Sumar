@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { X, Search, CreditCard, Banknote, Smartphone, Package } from "lucide-react"
 import { getPayments, getSessionsWithoutPayment, createPayment } from "../lib/api/payments"
 import { getPatients } from "../lib/api/patients"
@@ -47,6 +47,7 @@ export default function Payments() {
   const [payForm, setPayForm] = useState(defaultPayForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPayAmount, setMaxPayAmount] = useState(0)
+  const isSavingRef = useRef(false)
 
   useEffect(() => {
     loadData()
@@ -119,7 +120,8 @@ export default function Payments() {
   })
 
   const handlePay = async () => {
-    if (isSubmitting) return
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     setError(null)
 
@@ -169,6 +171,7 @@ export default function Payments() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrar pago")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }

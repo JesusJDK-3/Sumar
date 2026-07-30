@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, Plus, X, TrendingUp, Brain, Target, ChevronDown, Calendar } from "lucide-react"
 import { getClinicalRecords, createClinicalRecord, getSessionsWithoutRecord } from "../lib/api/clinicalRecords"
 import { getPatients } from "../lib/api/patients"
@@ -28,6 +28,7 @@ export default function ClinicalRecords() {
   const [sessionsWithoutRecord, setSessionsWithoutRecord] = useState<Session[]>([])
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSavingRef = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -99,7 +100,8 @@ export default function ClinicalRecords() {
   }
 
   const handleSave = async () => {
-    if (isSubmitting) return
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     setError(null)
 
@@ -124,6 +126,7 @@ export default function ClinicalRecords() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar registro")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }

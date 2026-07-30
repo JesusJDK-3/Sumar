@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, Plus, X, ChevronDown, User, Phone, Mail, MapPin, AlertCircle } from "lucide-react"
 import { getPatients, createPatient, updatePatient } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
@@ -41,6 +41,7 @@ export default function Patients() {
   const [form, setForm] = useState(emptyPatient)
   const [editing, setEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isSavingRef = useRef(false) // guard síncrono: no depende del re-render, a diferencia de isSubmitting
 
   useEffect(() => {
     async function load() {
@@ -68,7 +69,11 @@ export default function Patients() {
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
 
   const handleSave = async () => {
-    if (isSubmitting) return
+    // Guard síncrono: isSubmitting (estado) no protege de dos clics casi
+    // simultáneos porque el re-render no ocurre a tiempo. isSavingRef sí,
+    // porque se actualiza al instante, sin esperar a React.
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     setIsSubmitting(true)
     setError(null)
 
@@ -87,6 +92,7 @@ export default function Patients() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar paciente")
     } finally {
+      isSavingRef.current = false
       setIsSubmitting(false)
     }
   }
