@@ -153,10 +153,13 @@ export default function Payments() {
         const newAmountPaid = (selectedPackage.amount_paid || 0) + payForm.amountReceived
         const { error: updateError } = await supabase
           .from('patient_packages')
-          .update({ 
+          .update({
             amount_paid: newAmountPaid,
             payment_id: payment.id,
-            status: newAmountPaid >= (selectedPackage.total_amount || 0) ? 'completado' : 'activo'
+            // El status del paquete ('activo' / 'completado') depende de cuántas
+            // sesiones se han usado (used_sessions vs total_sessions), NO de si
+            // ya se pagó. Eso lo maneja usePackageSession() en payments.ts.
+            // Aquí solo registramos el pago, sin tocar el status.
           })
           .eq('id', selectedPackage.id)
 
