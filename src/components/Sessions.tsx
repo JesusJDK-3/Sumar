@@ -98,13 +98,25 @@ export default function Sessions() {
         const pkg = packages.find((p: any) => 
           p.serviceId === form.serviceId && p.status === 'activo'
         )
-        setActivePackage(pkg || null)
+        if (pkg) {
+          setActivePackage(pkg)
+          return
+        }
+        // El paciente tiene un paquete activo pero el servicio elegido no
+        // coincide (p.ej. el form quedó con el servicio por defecto).
+        // Auto-seleccionamos el servicio del paquete para no perder el enlace.
+        const anyActive = packages.find((p: any) => p.status === 'activo')
+        if (anyActive && formMode === 'sesion') {
+          setForm(f => ({ ...f, serviceId: anyActive.serviceId }))
+        } else {
+          setActivePackage(null)
+        }
       } catch (err) {
         console.error("Error cargando paquetes:", err)
       }
     }
     loadPackages()
-  }, [form.patientId, form.serviceId])
+  }, [form.patientId, form.serviceId, formMode])
 
   // Manejar cambio de modo: auto-seleccionar servicio de paquete al cambiar a "paquete"
   useEffect(() => {
