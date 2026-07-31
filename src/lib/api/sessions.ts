@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient'
-import type { Session, SessionStatus, Service } from '../../types'
+import type { Session, SessionStatus, Service, Sede } from '../../types'
 
 interface SessionRow {
   id: string
@@ -8,6 +8,7 @@ interface SessionRow {
   therapist_id: string
   service_id: string | null
   package_id: string | null  // ← NUEVO
+  sede_id: string | null  // ← NUEVO
   date: string
   start_time: string
   end_time: string
@@ -16,6 +17,12 @@ interface SessionRow {
   notes: string
   fee: number
   services?: ServiceRow
+  sedes?: SedeRow
+}
+
+interface SedeRow {
+  id: string
+  nombre: string
 }
 
 interface ServiceRow {
@@ -39,6 +46,13 @@ function rowToService(row: ServiceRow): Service {
   }
 }
 
+function rowToSede(row: SedeRow): Sede {
+  return {
+    id: row.id,
+    nombre: row.nombre,
+  }
+}
+
 function rowToSession(row: SessionRow): Session {
   return {
     id: row.id,
@@ -46,6 +60,7 @@ function rowToSession(row: SessionRow): Session {
     therapistId: row.therapist_id,
     serviceId: row.service_id || undefined,
     packageId: row.package_id || undefined,  // ← NUEVO
+    sedeId: row.sede_id || undefined,  // ← NUEVO
     date: row.date,
     startTime: row.start_time,
     endTime: row.end_time,
@@ -54,6 +69,7 @@ function rowToSession(row: SessionRow): Session {
     notes: row.notes,
     fee: row.fee,
     service: row.services ? rowToService(row.services) : undefined,
+    sede: row.sedes ? rowToSede(row.sedes) : undefined,
   }
 }
 
@@ -64,6 +80,7 @@ function sessionToRow(s: Partial<Session> & { appointmentId?: string }) {
     therapist_id: s.therapistId,
     service_id: s.serviceId ?? null,
     package_id: s.packageId ?? null,  // ← NUEVO
+    sede_id: s.sedeId ?? null,  // ← NUEVO
     date: s.date,
     start_time: s.startTime,
     end_time: s.endTime,
@@ -124,7 +141,7 @@ export async function createPackageAndSessions(params: {
   const { data: sessions, error: sessionsError } = await supabase
     .from('sessions')
     .insert(sessionsData)
-    .select('*, services!left(*)')
+    .select('*, services!left(*), sedes!left(*)')
 
   if (sessionsError) throw sessionsError
 
@@ -137,7 +154,7 @@ export async function createPackageAndSessions(params: {
 export async function getSessions(): Promise<Session[]> {
   const { data, error } = await supabase
     .from('sessions')
-    .select('*, services!left(*)')
+    .select('*, services!left(*), sedes!left(*)')
     .order('date', { ascending: false })
 
   if (error) throw error
@@ -163,7 +180,7 @@ export async function createSession(session: Omit<Session, 'id'>): Promise<Sessi
   const { data, error } = await supabase
     .from('sessions')
     .insert(sessionToRow(session))
-    .select('*, services!left(*)')
+    .select('*, services!left(*), sedes!left(*)')
     .single()
 
   if (error) throw error
@@ -175,7 +192,7 @@ export async function updateSession(id: string, session: Partial<Session>): Prom
     .from('sessions')
     .update(sessionToRow(session))
     .eq('id', id)
-    .select('*, services!left(*)')
+    .select('*, services!left(*), sedes!left(*)')
     .single()
 
   if (error) throw error
@@ -187,7 +204,7 @@ export async function updateSessionStatus(id: string, status: SessionStatus): Pr
     .from('sessions')
     .update({ status })
     .eq('id', id)
-    .select('*, services!left(*)')
+    .select('*, services!left(*), sedes!left(*)')
     .single()
 
   if (error) throw error
