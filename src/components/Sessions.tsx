@@ -86,10 +86,14 @@ export default function Sessions() {
     load()
   }, [])
 
-  // Cargar paquetes activos cuando cambia el paciente seleccionado
+  // Cargar paquetes activos cuando cambia el paciente seleccionado, el servicio,
+  // o cada vez que se abre el modal (showForm) — esto último es clave: si el
+  // form ya tenía el mismo patientId/serviceId de una sesión anterior, React
+  // no vuelve a disparar este efecto solo por esos dos, así que showForm
+  // fuerza una relectura fresca cada vez que el usuario abre "Nueva sesión".
   useEffect(() => {
-    if (!form.patientId) {
-      setActivePackage(null)
+    if (!form.patientId || !showForm) {
+      if (!form.patientId) setActivePackage(null)
       return
     }
     async function loadPackages() {
@@ -116,7 +120,7 @@ export default function Sessions() {
       }
     }
     loadPackages()
-  }, [form.patientId, form.serviceId, formMode])
+  }, [form.patientId, form.serviceId, formMode, showForm])
 
   // Manejar cambio de modo: auto-seleccionar servicio de paquete al cambiar a "paquete"
   useEffect(() => {
