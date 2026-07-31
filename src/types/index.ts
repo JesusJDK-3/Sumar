@@ -85,12 +85,18 @@ export interface ClinicalRecord {
 }
 
 
+export interface Sede {
+  id: string
+  nombre: string
+}
+
 export interface Session {
   id: string
   patientId: string
   therapistId: string
   serviceId?: string
   packageId?: string // ← NUEVO: si viene de un paquete
+  sedeId?: string // ← NUEVO: sede donde se realiza la sesión
   date: string
   startTime: string
   endTime: string
@@ -99,6 +105,7 @@ export interface Session {
   notes: string
   fee: number
   service?: Service
+  sede?: Sede
 }
 
 export interface Payment {

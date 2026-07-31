@@ -4,9 +4,10 @@ import { getSessions, createSession, updateSessionStatus } from "../lib/api/sess
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
+import { getSedes } from "../lib/api/sedes"
 import { supabase } from "../lib/supabaseClient"
 import { getPatientPackages, usePackageSession } from "../lib/api/payments"
-import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage } from "../types"
+import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage, Sede } from "../types"
 
 const statusColor: Record<SessionStatus, string> = {
   Realizada: "bg-emerald-100 text-emerald-700",
@@ -30,6 +31,7 @@ export default function Sessions() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [sedes, setSedes] = useState<Sede[]>([])
   const [packagePrice, setPackagePrice] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -55,21 +57,24 @@ export default function Sessions() {
     async function load() {
       try {
         setLoading(true)
-        const [sessionsData, patientsData, therapistsData, servicesData] = await Promise.all([
+        const [sessionsData, patientsData, therapistsData, servicesData, sedesData] = await Promise.all([
           getSessions(),
           getPatients(),
           getTherapists(),
           getServices(),
+          getSedes(),
         ])
         setSessionList(sessionsData)
         setPatients(patientsData)
         setTherapists(therapistsData)
         setServices(servicesData)
+        setSedes(sedesData)
         setForm(f => ({
           ...f,
           patientId: patientsData[0]?.id,
           therapistId: therapistsData[0]?.id,
           serviceId: servicesData[0]?.id,
+          sedeId: sedesData[0]?.id,
           fee: servicesData[0]?.defaultFee || 120,
         }))
       } catch (err) {
@@ -166,6 +171,7 @@ export default function Sessions() {
               patientId: form.patientId!,
               therapistId: form.therapistId!,
               serviceId: form.serviceId,
+              sedeId: form.sedeId,
               date: form.date!,
               startTime: form.startTime!,
               endTime: form.endTime!,
@@ -217,6 +223,7 @@ export default function Sessions() {
         patientId: form.patientId!,
         therapistId: form.therapistId!,
         serviceId: form.serviceId,
+        sedeId: form.sedeId,
         date: form.date!,
         startTime: form.startTime!,
         endTime: form.endTime!,
@@ -284,6 +291,7 @@ export default function Sessions() {
       patientId: patients[0]?.id,
       therapistId: therapists[0]?.id,
       serviceId: services[0]?.id,
+      sedeId: sedes[0]?.id,
       date: today,
       startTime,
       endTime,
@@ -359,7 +367,7 @@ export default function Sessions() {
           <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="border-b border-[#E2E7EF]">
-                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Monto","Notas", "Estado", ""].map(h => (
+                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Sede", "Monto","Notas", "Estado", ""].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -396,6 +404,7 @@ export default function Sessions() {
                         <span className="text-[#6B7A94] text-xs">—</span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-[#6B7A94] text-xs">{s.sede?.nombre || "—"}</td>
                     <td className="px-4 py-3 font-semibold text-[#2B3A5C]">
                       {s.fee === 0 ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600">
@@ -492,6 +501,17 @@ export default function Sessions() {
                         {s.number}. {s.name} {s.sessionCount && s.sessionCount > 1 ? `(${s.sessionCount} sesiones)` : ""}
                       </option>
                     ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Sede</label>
+                <select
+                  value={form.sedeId || ""}
+                  onChange={e => setForm(f => ({ ...f, sedeId: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white"
+                >
+                  <option value="" disabled>Selecciona una sede</option>
+                  {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
               </div>
 
