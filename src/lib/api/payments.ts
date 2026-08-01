@@ -282,3 +282,31 @@ export async function usePackageSession(packageId: string) {
 
   if (error) throw error
 }
+
+// NUEVO: Liberar una sesión de un paquete (decrementar used_sessions).
+// Se usa cuando se cancela una sesión que pertenecía a un paquete, para
+// devolverle el cupo. Si el paquete estaba 'completado' (todas las
+// sesiones usadas) y ahora queda un cupo libre, vuelve a 'activo'.
+export async function releasePackageSession(packageId: string) {
+  const { data: pkg, error: fetchError } = await supabase
+    .from('patient_packages')
+    .select('total_sessions, used_sessions')
+    .eq('id', packageId)
+    .single()
+
+  if (fetchError) throw fetchError
+  if (!pkg) throw new Error('Paquete no encontrado')
+
+  const newUsed = Math.max((pkg.used_sessions || 0) - 1, 0)
+  const newStatus = newUsed >= pkg.total_sessions ? 'completado' : 'activo'
+
+  const { error } = await supabase
+    .from('patient_packages')
+    .update({
+      used_sessions: newUsed,
+      status: newStatus,
+    })
+    .eq('id', packageId)
+
+  if (error) throw error
+}

@@ -6,7 +6,7 @@ import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
 import { getSedes } from "../lib/api/sedes"
 import { supabase } from "../lib/supabaseClient"
-import { getPatientPackages, usePackageSession } from "../lib/api/payments"
+import { getPatientPackages, usePackageSession, releasePackageSession } from "../lib/api/payments"
 import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage, Sede } from "../types"
 
 const statusColor: Record<SessionStatus, string> = {
@@ -240,6 +240,7 @@ export default function Sessions() {
         therapistId: form.therapistId!,
         serviceId: form.serviceId,
         sedeId: form.sedeId,
+        packageId: activePackage?.id,
         date: form.date!,
         startTime: form.startTime!,
         endTime: form.endTime!,
@@ -265,8 +266,20 @@ export default function Sessions() {
 
   const handleStatusChange = async (id: string, status: SessionStatus) => {
     try {
+      const previous = sessionList.find(s => s.id === id)
       const updated = await updateSessionStatus(id, status)
       setSessionList(prev => prev.map(x => x.id === id ? updated : x))
+
+      // Si la sesión pertenece a un paquete, ajustar su contador de cupos:
+      if (previous?.packageId) {
+        if (status === 'Cancelada' && previous.status !== 'Cancelada') {
+          // Se canceló: devolver el cupo al paquete
+          await releasePackageSession(previous.packageId)
+        } else if (previous.status === 'Cancelada' && status !== 'Cancelada') {
+          // Se revirtió una cancelación: volver a consumir el cupo
+          await usePackageSession(previous.packageId)
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al actualizar estado")
     }
