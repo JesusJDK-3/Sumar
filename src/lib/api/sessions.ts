@@ -199,6 +199,51 @@ export async function updateSession(id: string, session: Partial<Session>): Prom
   return rowToSession(data as SessionRow)
 }
 
+// Edición "segura" de sesión: solo los campos no sensibles (fecha, hora,
+// terapeuta, tipo, sede). A diferencia de updateSession (que usa sessionToRow
+// y castea campos ausentes del Partial a null), aquí solo tocamos lo que
+// se pasa explícitamente — paciente, servicio, paquete, monto, notas y estado
+// quedan intactos siempre.
+export async function updateSessionSchedule(
+  id: string,
+  fields: { date: string; startTime: string; endTime: string; therapistId: string; type: string; sedeId: string },
+  currentStatus: SessionStatus
+): Promise<Session> {
+  // Validar conflicto de horario para el terapeuta, excluyendo esta misma sesión
+  if (currentStatus !== 'Cancelada') {
+    const { data: existing, error: checkError } = await supabase
+      .from('sessions')
+      .select('id, status')
+      .eq('therapist_id', fields.therapistId)
+      .eq('date', fields.date)
+      .neq('status', 'Cancelada')
+      .neq('id', id)
+      .or(`and(start_time.lt.${fields.endTime},end_time.gt.${fields.startTime})`)
+
+    if (checkError) throw checkError
+    if (existing && existing.length > 0) {
+      throw new Error('Conflicto de horario: el terapeuta ya tiene una sesión en esa fecha y hora.')
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .update({
+      date: fields.date,
+      start_time: fields.startTime,
+      end_time: fields.endTime,
+      therapist_id: fields.therapistId,
+      type: fields.type,
+      sede_id: fields.sedeId,
+    })
+    .eq('id', id)
+    .select('*, services!left(*), sedes!left(*)')
+    .single()
+
+  if (error) throw error
+  return rowToSession(data as SessionRow)
+}
+
 export async function updateSessionStatus(id: string, status: SessionStatus): Promise<Session> {
   const { data, error } = await supabase
     .from('sessions')

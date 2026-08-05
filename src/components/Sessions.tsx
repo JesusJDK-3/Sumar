@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Plus, X, ChevronDown, Search, Package } from "lucide-react"
-import { getSessions, createSession, updateSessionStatus } from "../lib/api/sessions"
+import { getSessions, createSession, updateSessionStatus, updateSessionSchedule } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
@@ -52,6 +52,12 @@ export default function Sessions() {
   const [activePackage, setActivePackage] = useState<PatientPackage | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isSavingRef = useRef(false)
+
+  // Edición de sesión existente (solo campos no sensibles)
+  const [editingSession, setEditingSession] = useState<Session | null>(null)
+  const [editForm, setEditForm] = useState({ date: "", startTime: "", endTime: "", therapistId: "", type: "Individual", sedeId: "" })
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const isSavingEditRef = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -285,6 +291,35 @@ export default function Sessions() {
     }
   }
 
+  const openEditSession = (s: Session) => {
+    setEditingSession(s)
+    setEditForm({
+      date: s.date,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      therapistId: s.therapistId,
+      type: s.type,
+      sedeId: s.sedeId || "",
+    })
+  }
+
+  const handleSaveEdit = async () => {
+    if (isSavingEditRef.current || !editingSession) return
+    isSavingEditRef.current = true
+    setIsSavingEdit(true)
+    setError(null)
+    try {
+      const updated = await updateSessionSchedule(editingSession.id, editForm, editingSession.status)
+      setSessionList(prev => prev.map(x => x.id === editingSession.id ? updated : x))
+      setEditingSession(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar sesión")
+    } finally {
+      isSavingEditRef.current = false
+      setIsSavingEdit(false)
+    }
+  }
+
   const stats = {
     total: sessionList.length,
     realizadas: sessionList.filter(s => s.status === "Realizada").length,
@@ -407,7 +442,7 @@ export default function Sessions() {
                 const t = getTherapist(s.therapistId)
                 const svc = s.service
                 return (
-                  <tr key={s.id} className="hover:bg-[#F8F9FC] transition-colors">
+                  <tr key={s.id} onClick={() => openEditSession(s)} className="hover:bg-[#F8F9FC] transition-colors cursor-pointer">
                     <td className="px-4 py-3 text-[#1A2332] font-medium">{s.date}</td>
                     <td className="px-4 py-3 text-[#6B7A94]">{s.startTime} – {s.endTime}</td>
                     <td className="px-4 py-3">
@@ -672,6 +707,90 @@ export default function Sessions() {
                 ) : (
                   formMode === "paquete" ? "Crear paquete (1ª sesión)" : "Registrar sesión"
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de edición de sesión (solo campos no sensibles) */}
+      {editingSession && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
+              <div>
+                <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Editar sesión
+                </h2>
+                <p className="text-xs text-[#6B7A94] mt-0.5">
+                  {getPatient(editingSession.patientId)?.firstName} {getPatient(editingSession.patientId)?.lastName}
+                  {editingSession.service ? ` · ${editingSession.service.number}. ${editingSession.service.name}` : ""}
+                </p>
+              </div>
+              <button onClick={() => setEditingSession(null)}><X size={18} className="text-[#6B7A94]" /></button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha</label>
+                  <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
+                </div>
+                <div />
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Hora inicio</label>
+                  <input type="time" value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Hora fin</label>
+                  <input type="time" value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E]" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Terapeuta</label>
+                <select value={editForm.therapistId} onChange={e => setEditForm(f => ({ ...f, therapistId: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
+                  {therapists.map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Tipo</label>
+                <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
+                  {["Individual", "Grupal", "Familiar", "Evaluación inicial"].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Sede</label>
+                <select value={editForm.sedeId} onChange={e => setEditForm(f => ({ ...f, sedeId: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-white">
+                  <option value="" disabled>Selecciona una sede</option>
+                  {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+              <p className="text-[11px] text-[#6B7A94] bg-[#F2F4F8] rounded-lg px-3 py-2">
+                Paciente, servicio, paquete, monto y estado no se editan aquí. Para cambiar el estado usa el desplegable de la tabla.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 px-6 pb-6">
+              <button onClick={() => setEditingSession(null)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit}
+                className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSavingEdit ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Guardando...
+                  </span>
+                ) : "Guardar cambios"}
               </button>
             </div>
           </div>
