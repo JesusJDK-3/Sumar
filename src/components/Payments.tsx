@@ -41,6 +41,7 @@ export default function Payments() {
   const [viewMode, setViewMode] = useState<ViewMode>("historial")
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>("todos")
   const [search, setSearch] = useState("")
+  const [monthFilter, setMonthFilter] = useState("")
   const [showPayModal, setShowPayModal] = useState(false)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
@@ -111,12 +112,14 @@ export default function Payments() {
     const patient = getPatient(p.patientId)
     const name = `${patient?.firstName} ${patient?.lastName}`.toLowerCase()
     const matchSearch = !search || name.includes(search.toLowerCase()) || p.date.includes(search)
-    
-    if (kpiFilter === "todos") return matchSearch
-    if (kpiFilter === "cobrado") return (p.status === "Pagado" || p.status === "Parcial") && matchSearch
-    if (kpiFilter === "parciales") return p.status === "Parcial" && matchSearch
-    if (kpiFilter === "ingresos") return p.date.startsWith(currentMonth) && matchSearch
-    return matchSearch
+    const matchMonth = !monthFilter || p.date.startsWith(monthFilter)
+    const matchBase = matchSearch && matchMonth
+
+    if (kpiFilter === "todos") return matchBase
+    if (kpiFilter === "cobrado") return (p.status === "Pagado" || p.status === "Parcial") && matchBase
+    if (kpiFilter === "parciales") return p.status === "Parcial" && matchBase
+    if (kpiFilter === "ingresos") return p.date.startsWith(currentMonth) && matchBase
+    return matchBase
   })
 
   const handlePay = async () => {
@@ -239,6 +242,21 @@ export default function Payments() {
               placeholder="Buscar paciente..."
               className="pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-44 bg-[#F2F4F8]" 
             />
+          <input
+            type="month"
+            value={monthFilter}
+            onChange={e => setMonthFilter(e.target.value)}
+            className="px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8] text-[#2B3A5C]"
+          />
+          {monthFilter && (
+            <button
+              onClick={() => setMonthFilter("")}
+              className="text-xs font-medium text-[#6B7A94] hover:text-[#E8481E] px-1"
+              title="Quitar filtro de mes"
+            >
+              Limpiar
+            </button>
+          )}
           </div>
           <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
             <button 
