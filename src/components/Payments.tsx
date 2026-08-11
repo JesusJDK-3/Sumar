@@ -41,7 +41,7 @@ export default function Payments() {
   const [viewMode, setViewMode] = useState<ViewMode>("historial")
   const [kpiFilter, setKpiFilter] = useState<KpiFilter>("todos")
   const [search, setSearch] = useState("")
-  const [monthFilter, setMonthFilter] = useState("")
+  const [monthFilter, setMonthFilter] = useState("") // "" = todos los meses, "YYYY-MM" = mes específico
   const [showPayModal, setShowPayModal] = useState(false)
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
@@ -97,12 +97,19 @@ export default function Payments() {
 
   // KPIs
   const currentMonth = new Date().toISOString().slice(0, 7)
-  const monthPayments = payments.filter(p => p.date.startsWith(currentMonth))
-  
+  // Si hay un mes seleccionado en el filtro, las tarjetas usan ese mes; si no, usan el mes actual
+  const effectiveMonth = monthFilter || currentMonth
+  const monthPayments = payments.filter(p => p.date.startsWith(effectiveMonth))
+
   const stats = {
     ingresosMes: monthPayments.reduce((sum, p) => sum + p.amount, 0),
-    totalCobrado: payments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((sum, p) => sum + p.amount, 0),
-    pagosParciales: payments.filter(p => p.status === "Parcial").length,
+    totalCobrado: monthFilter
+      ? monthPayments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((sum, p) => sum + p.amount, 0)
+      : payments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((sum, p) => sum + p.amount, 0),
+    pagosParciales: monthFilter
+      ? monthPayments.filter(p => p.status === "Parcial").length
+      : payments.filter(p => p.status === "Parcial").length,
+    // "Por cobrar" queda igual, sin filtrar por mes (es deuda actual, no histórica)
     porCobrar: pendingSessions.reduce((sum, s) => sum + (s.fee - (payments.filter(pay => pay.sessionId === s.id).reduce((a, b) => a + b.amount, 0))), 0)
     + pendingPackages.reduce((sum, pkg) => sum + ((pkg.total_amount || 0) - (pkg.amount_paid || 0)), 0),
   }
@@ -118,7 +125,7 @@ export default function Payments() {
     if (kpiFilter === "todos") return matchBase
     if (kpiFilter === "cobrado") return (p.status === "Pagado" || p.status === "Parcial") && matchBase
     if (kpiFilter === "parciales") return p.status === "Parcial" && matchBase
-    if (kpiFilter === "ingresos") return p.date.startsWith(currentMonth) && matchBase
+    if (kpiFilter === "ingresos") return p.date.startsWith(effectiveMonth) && matchBase
     return matchBase
   })
 
@@ -242,6 +249,7 @@ export default function Payments() {
               placeholder="Buscar paciente..."
               className="pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] w-44 bg-[#F2F4F8]" 
             />
+          </div>
           <input
             type="month"
             value={monthFilter}
@@ -257,7 +265,6 @@ export default function Payments() {
               Limpiar
             </button>
           )}
-          </div>
           <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
             <button 
               onClick={() => { setViewMode("historial"); setKpiFilter("todos") }}
