@@ -7,6 +7,7 @@ import { getServices } from "../lib/api/services"
 import { getSedes } from "../lib/api/sedes"
 import { supabase } from "../lib/supabaseClient"
 import { getPatientPackages, usePackageSession, releasePackageSession } from "../lib/api/payments"
+import SessionCalendar from "./SessionCalendar"
 import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage, Sede } from "../types"
 
 const statusColor: Record<SessionStatus, string> = {
@@ -39,6 +40,7 @@ export default function Sessions() {
   const [statusFilter, setStatusFilter] = useState<SessionStatus | "Todos">("Todos")
   const [serviceFilter, setServiceFilter] = useState<string>("Todos")
   const [showForm, setShowForm] = useState(false)
+  const [viewMode, setViewMode] = useState<"lista" | "calendario">("lista")
   const [formMode, setFormMode] = useState<"sesion" | "paquete">("sesion")
   const [form, setForm] = useState<Partial<Session>>({
     date: new Date().toISOString().split("T")[0],
@@ -403,6 +405,16 @@ export default function Sessions() {
             </select>
             <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
           </div>
+          <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
+            <button onClick={() => setViewMode("lista")}
+              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === "lista" ? "bg-white shadow-sm text-[#2B3A5C]" : "text-[#6B7A94]"}`}>
+              Lista
+            </button>
+            <button onClick={() => setViewMode("calendario")}
+              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === "calendario" ? "bg-white shadow-sm text-[#E8481E]" : "text-[#6B7A94]"}`}>
+              Calendario
+            </button>
+          </div>
           <button onClick={() => { resetForm(); setShowForm(true) }}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0">
             <Plus size={14} /> Nueva sesión
@@ -425,84 +437,93 @@ export default function Sessions() {
         ))}
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-5">
-        <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[800px]">
-            <thead>
-              <tr className="border-b border-[#E2E7EF]">
-                {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Sede", "Monto","Notas", "Estado", ""].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F2F4F8]">
-              {filtered.map(s => {
-                const p = getPatient(s.patientId)
-                const t = getTherapist(s.therapistId)
-                const svc = s.service
-                return (
-                  <tr key={s.id} onClick={() => openEditSession(s)} className="hover:bg-[#F8F9FC] transition-colors cursor-pointer">
-                    <td className="px-4 py-3 text-[#1A2332] font-medium">{s.date}</td>
-                    <td className="px-4 py-3 text-[#6B7A94]">{s.startTime} – {s.endTime}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                          style={{ background: t?.color || "#E8481E" }}>
-                          {p?.firstName[0]}{p?.lastName[0]}
+      {/* Table / Calendar */}
+      {viewMode === "lista" ? (
+        <div className="flex-1 overflow-auto p-5">
+          <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px]">
+              <thead>
+                <tr className="border-b border-[#E2E7EF]">
+                  {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Sede", "Monto","Notas", "Estado", ""].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F2F4F8]">
+                {filtered.map(s => {
+                  const p = getPatient(s.patientId)
+                  const t = getTherapist(s.therapistId)
+                  const svc = s.service
+                  return (
+                    <tr key={s.id} onClick={() => openEditSession(s)} className="hover:bg-[#F8F9FC] transition-colors cursor-pointer">
+                      <td className="px-4 py-3 text-[#1A2332] font-medium">{s.date}</td>
+                      <td className="px-4 py-3 text-[#6B7A94]">{s.startTime} – {s.endTime}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                            style={{ background: t?.color || "#E8481E" }}>
+                            {p?.firstName[0]}{p?.lastName[0]}
+                          </div>
+                          <span className="font-semibold text-[#1A2332]">{p?.firstName} {p?.lastName}</span>
                         </div>
-                        <span className="font-semibold text-[#1A2332]">{p?.firstName} {p?.lastName}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7A94] text-xs">{t?.firstName} {t?.lastName}</td>
-                    <td className="px-4 py-3 text-[#6B7A94]">{s.type}</td>
-                    <td className="px-4 py-3">
-                      {svc ? (
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border ${getServiceColor(svc.number)}`}>
-                          <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {svc.number}
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7A94] text-xs">{t?.firstName} {t?.lastName}</td>
+                      <td className="px-4 py-3 text-[#6B7A94]">{s.type}</td>
+                      <td className="px-4 py-3">
+                        {svc ? (
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border ${getServiceColor(svc.number)}`}>
+                            <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold shrink-0">
+                              {svc.number}
+                            </span>
+                            <span className="truncate max-w-[180px]">{svc.name}</span>
                           </span>
-                          <span className="truncate max-w-[180px]">{svc.name}</span>
+                        ) : (
+                          <span className="text-[#6B7A94] text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7A94] text-xs">{s.sede?.nombre || "—"}</td>
+                      <td className="px-4 py-3 font-semibold text-[#2B3A5C]">
+                        {s.fee === 0 ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600">
+                            <Package size={12} /> Cubierto
+                          </span>
+                        ) : (
+                          `S/ ${s.fee}`
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7A94] text-xs max-w-[150px] truncate" title={s.notes || ""}>
+                        {s.notes || "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
+                          {s.status}
                         </span>
-                      ) : (
-                        <span className="text-[#6B7A94] text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7A94] text-xs">{s.sede?.nombre || "—"}</td>
-                    <td className="px-4 py-3 font-semibold text-[#2B3A5C]">
-                      {s.fee === 0 ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600">
-                          <Package size={12} /> Cubierto
-                        </span>
-                      ) : (
-                        `S/ ${s.fee}`
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[#6B7A94] text-xs max-w-[150px] truncate" title={s.notes || ""}>
-                      {s.notes || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={s.status}
-                        onChange={e => handleStatusChange(s.id, e.target.value as SessionStatus)}
-                        className="text-xs border border-[#E2E7EF] rounded px-1 py-0.5 bg-white outline-none"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {["Pendiente", "Realizada", "Cancelada", "Reprogramada"].map(st => <option key={st}>{st}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={s.status}
+                          onChange={e => handleStatusChange(s.id, e.target.value as SessionStatus)}
+                          className="text-xs border border-[#E2E7EF] rounded px-1 py-0.5 bg-white outline-none"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {["Pendiente", "Realizada", "Cancelada", "Reprogramada"].map(st => <option key={st}>{st}</option>)}
+                        </select>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <SessionCalendar
+          sessions={filtered}
+          patients={patients}
+          therapists={therapists}
+          onStatusChange={handleStatusChange}
+        />
+      )}
 
       {/* Form modal */}
       {showForm && (
