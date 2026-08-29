@@ -138,7 +138,7 @@ export default function Reports() {
         {[
           { label: "Pacientes activos", value: activePatients, icon: Users, color: NAVY, bg: "#EEF1F8", sub: `${waitingPatients} en espera` },
           { label: "Sesiones realizadas", value: completedSessions, icon: CalendarCheck, color: ORANGE, bg: "#FDF0EC", sub: `${attendanceRate}% asistencia` },
-          { label: "Ingresos totales", value: `S/ ${totalIncome.toLocaleString()}`, icon: TrendingUp, color: GREEN, bg: "#ECFDF5", sub: `S/ ${pending} por cobrar` },
+          { label: "Ingresos totales", value: `S/ ${totalIncome.toLocaleString()}`, icon: TrendingUp, color: GREEN, bg: "#ECFDF5" },
           { label: "Tasa asistencia", value: `${presenteRate}%`, icon: Activity, color: BLUE, bg: "#EFF6FF", sub: `${cancelledSessions} cancelaciones` },
         ].map(({ label, value, icon: Icon, color, bg, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-[#E2E7EF] p-5 shadow-sm">
