@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Plus, X, ChevronDown, Search, Package } from "lucide-react"
+import { Plus, X, ChevronDown, Search, Package, ChevronLeft, ChevronRight } from "lucide-react"
 import { getSessions, createSession, updateSessionStatus, updateSessionSchedule } from "../lib/api/sessions"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
@@ -9,6 +9,8 @@ import { supabase } from "../lib/supabaseClient"
 import { getPatientPackages, usePackageSession, releasePackageSession } from "../lib/api/payments"
 import SessionCalendar from "./SessionCalendar"
 import type { Session, SessionStatus, Patient, Therapist, Service, PatientPackage, Sede } from "../types"
+
+const ITEMS_PER_PAGE = 12
 
 const statusColor: Record<SessionStatus, string> = {
   Realizada: "bg-emerald-100 text-emerald-700",
@@ -60,6 +62,7 @@ export default function Sessions() {
   const [editForm, setEditForm] = useState({ date: "", startTime: "", endTime: "", therapistId: "", type: "Individual", sedeId: "" })
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const isSavingEditRef = useRef(false)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     async function load() {
@@ -177,6 +180,15 @@ export default function Sessions() {
       return matchSearch && matchStatus && matchService
     })
     .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
+
+  // Paginación
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, serviceFilter])
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedFiltered = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   const handleSave = async () => {
     if (isSavingRef.current) return   // ← BLOQUEO síncrono: no depende del re-render
@@ -453,7 +465,7 @@ export default function Sessions() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F2F4F8]">
-                  {filtered.map(s => {
+                  {paginatedFiltered.map(s => {
                     const p = getPatient(s.patientId)
                     const t = getTherapist(s.therapistId)
                     const svc = s.service
@@ -518,6 +530,28 @@ export default function Sessions() {
                 </tbody>
               </table>
             </div>
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E7EF] bg-[#F8F9FC]">
+                <p className="text-xs text-[#6B7A94] font-medium">Página {currentPage} de {totalPages}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={14} /> Anterior
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

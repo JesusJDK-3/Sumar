@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react"
-import { Search, Plus, X, ChevronDown, User, Phone, Mail, MapPin, AlertCircle } from "lucide-react"
+import { Search, Plus, X, ChevronDown, User, Phone, Mail, MapPin, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { getPatients, createPatient, updatePatient } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import type { Patient, Gender, PatientStatus, Therapist } from "../types"
+
+const ITEMS_PER_PAGE = 12
 
 const statusColor: Record<PatientStatus, string> = {
   Activo: "bg-emerald-100 text-emerald-700",
@@ -41,6 +43,7 @@ export default function Patients() {
   const [form, setForm] = useState(emptyPatient)
   const [editing, setEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
   const isSavingRef = useRef(false) // guard síncrono: no depende del re-render, a diferencia de isSubmitting
 
   useEffect(() => {
@@ -65,6 +68,15 @@ export default function Patients() {
     const matchStatus = statusFilter === "Todos" || p.status === statusFilter
     return matchSearch && matchStatus
   })
+
+  // Paginación
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter])
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedFiltered = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   const getTherapist = (id: string) => therapists.find(t => t.id === id)
 
@@ -178,7 +190,7 @@ export default function Patients() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F2F4F8]">
-                  {filtered.map(p => {
+                  {paginatedFiltered.map(p => {
                     const therapist = getTherapist(p.therapistId)
                     return (
                       <tr
@@ -227,6 +239,28 @@ export default function Patients() {
                 </tbody>
               </table>
             </div>
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E7EF] bg-[#F8F9FC]">
+                <p className="text-xs text-[#6B7A94] font-medium">Página {currentPage} de {totalPages}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={14} /> Anterior
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

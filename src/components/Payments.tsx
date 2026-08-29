@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { X, Search, CreditCard, Banknote, Smartphone, Package } from "lucide-react"
+import { X, Search, CreditCard, Banknote, Smartphone, Package, ChevronLeft, ChevronRight } from "lucide-react"
 import { getPayments, getSessionsWithoutPayment, createPayment } from "../lib/api/payments"
 import { getPatients } from "../lib/api/patients"
 import { getServices } from "../lib/api/services"
@@ -8,6 +8,8 @@ import type { Payment, Session, Patient, PaymentMethod, Service } from "../types
 
 type ViewMode = "historial" | "pendientes"
 type KpiFilter = "todos" | "ingresos" | "cobrado" | "parciales" | "porCobrar"
+
+const ITEMS_PER_PAGE = 12
 
 const methodIcon: Record<PaymentMethod, typeof Banknote> = {
   Efectivo: Banknote,
@@ -48,6 +50,8 @@ export default function Payments() {
   const [payForm, setPayForm] = useState(defaultPayForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [maxPayAmount, setMaxPayAmount] = useState(0)
+  const [currentPageHistorial, setCurrentPageHistorial] = useState(1)
+  const [currentPagePendientes, setCurrentPagePendientes] = useState(1)
   const isSavingRef = useRef(false)
 
   useEffect(() => {
@@ -128,6 +132,36 @@ export default function Payments() {
     if (kpiFilter === "ingresos") return p.date.startsWith(effectiveMonth) && matchBase
     return matchBase
   })
+
+  // Paginación para historial
+  useEffect(() => {
+    setCurrentPageHistorial(1)
+  }, [search, kpiFilter, monthFilter])
+
+  const totalPagesHistorial = Math.ceil(filteredPayments.length / ITEMS_PER_PAGE)
+  const startIndexHistorial = (currentPageHistorial - 1) * ITEMS_PER_PAGE
+  const paginatedPayments = filteredPayments.slice(startIndexHistorial, startIndexHistorial + ITEMS_PER_PAGE)
+
+  // Paginación para pendientes
+  useEffect(() => {
+    setCurrentPagePendientes(1)
+  }, [search])
+
+  // Combinar sesiones y paquetes para paginación conjunta
+  const allPending = [
+    ...pendingSessions.map(s => ({ type: 'session' as const, data: s })),
+    ...pendingPackages.map(p => ({ type: 'package' as const, data: p }))
+  ]
+  const totalPagesPendientes = Math.ceil(allPending.length / ITEMS_PER_PAGE)
+  const startIndexPendientes = (currentPagePendientes - 1) * ITEMS_PER_PAGE
+  const paginatedPendingSessions = allPending
+    .filter(p => p.type === 'session')
+    .slice(startIndexPendientes, startIndexPendientes + ITEMS_PER_PAGE)
+    .map(p => p.data as Session)
+  const paginatedPendingPackages = allPending
+    .filter(p => p.type === 'package')
+    .slice(startIndexPendientes, startIndexPendientes + ITEMS_PER_PAGE)
+    .map(p => p.data)
 
   const handlePay = async () => {
     if (isSavingRef.current) return
@@ -331,7 +365,8 @@ export default function Payments() {
         <div className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm h-full flex flex-col">
           <div className="overflow-x-auto overflow-y-auto flex-1">
             {viewMode === "historial" ? (
-              // HISTORIAL DE PAGOS
+              <>
+              {/* HISTORIAL DE PAGOS */}
               <table className="w-full text-sm min-w-max">
                 <thead className="bg-[#F8F9FC] sticky top-0">
                   <tr className="border-b border-[#E2E7EF]">
@@ -341,7 +376,7 @@ export default function Payments() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F2F4F8]">
-                  {filteredPayments.map(p => {
+                  {paginatedPayments.map(p => {
                     const patient = getPatient(p.patientId)
                     const MethodIcon = methodIcon[p.method] || Banknote
                     const isPackagePayment = p.sessionCount && p.sessionCount > 1
@@ -377,8 +412,31 @@ export default function Payments() {
                   })}
                 </tbody>
               </table>
+              {totalPagesHistorial > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E7EF] bg-[#F8F9FC]">
+                  <p className="text-xs text-[#6B7A94] font-medium">Página {currentPageHistorial} de {totalPagesHistorial}</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPageHistorial(prev => Math.max(1, prev - 1))}
+                      disabled={currentPageHistorial === 1}
+                      className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft size={14} /> Anterior
+                    </button>
+                    <button
+                      onClick={() => setCurrentPageHistorial(prev => Math.min(totalPagesHistorial, prev + 1))}
+                      disabled={currentPageHistorial === totalPagesHistorial}
+                      className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
             ) : (
-              // PENDIENTES DE COBRO - Sesiones + Paquetes
+              <>
+              {/* PENDIENTES DE COBRO - Sesiones + Paquetes */}
               <table className="w-full text-sm min-w-max">
                 <thead className="bg-[#F8F9FC] sticky top-0">
                   <tr className="border-b border-[#E2E7EF]">
@@ -389,7 +447,7 @@ export default function Payments() {
                 </thead>
                 <tbody className="divide-y divide-[#F2F4F8]">
                   {/* Sesiones individuales pendientes */}
-                  {pendingSessions.map(s => {
+                  {paginatedPendingSessions.map(s => {
                     const patient = getPatient(s.patientId)
                     const paid = payments
                       .filter(p => p.sessionId === s.id)
@@ -418,7 +476,7 @@ export default function Payments() {
                   })}
                   
                   {/* Paquetes pendientes de pago */}
-                  {pendingPackages.map(pkg => {
+                  {paginatedPendingPackages.map(pkg => {
                     const patient = getPatient(pkg.patient_id)
                     const service = pkg.services
                     const total = pkg.total_amount || 0
@@ -455,6 +513,28 @@ export default function Payments() {
                   })}
                 </tbody>
               </table>
+              {totalPagesPendientes > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E7EF] bg-[#F8F9FC]">
+                  <p className="text-xs text-[#6B7A94] font-medium">Página {currentPagePendientes} de {totalPagesPendientes}</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPagePendientes(prev => Math.max(1, prev - 1))}
+                      disabled={currentPagePendientes === 1}
+                      className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft size={14} /> Anterior
+                    </button>
+                    <button
+                      onClick={() => setCurrentPagePendientes(prev => Math.min(totalPagesPendientes, prev + 1))}
+                      disabled={currentPagePendientes === totalPagesPendientes}
+                      className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium border border-[#E2E7EF] rounded-lg text-[#6B7A94] hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Siguiente <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>
