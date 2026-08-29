@@ -79,11 +79,14 @@ export default function Reports() {
   const attendanceRate = totalSessions ? Math.round((completedSessions / totalSessions) * 100) : 0
 
   const totalIncome = payments.filter(p => p.status === "Pagado" || p.status === "Parcial").reduce((a, p) => a + p.amount, 0)
+  
+  // Calcular monto pendiente: sesiones realizadas con fee > 0 minus pagos registrados
   const pending = sessions
-    .filter(s => s.status === "Realizada")
+    .filter(s => s.status === "Realizada" && s.fee && s.fee > 0)
     .reduce((sum, s) => {
-      const paid = payments.filter(p => p.sessionId === s.id).reduce((a, p) => a + p.amount, 0)
-      return sum + Math.max(0, s.fee - paid)
+      const paidForSession = payments.filter(p => p.sessionId === s.id).reduce((a, p) => a + p.amount, 0)
+      const outstanding = s.fee - paidForSession
+      return sum + Math.max(0, outstanding)
     }, 0)
 
   const patientByStatus = [
@@ -138,7 +141,7 @@ export default function Reports() {
         {[
           { label: "Pacientes activos", value: activePatients, icon: Users, color: NAVY, bg: "#EEF1F8", sub: `${waitingPatients} en espera` },
           { label: "Sesiones realizadas", value: completedSessions, icon: CalendarCheck, color: ORANGE, bg: "#FDF0EC", sub: `${attendanceRate}% asistencia` },
-          { label: "Ingresos totales", value: `S/ ${totalIncome.toLocaleString()}`, icon: TrendingUp, color: GREEN, bg: "#ECFDF5", sub: `S/ ${pending} por cobrar` },
+          { label: "Ingresos totales", value: `S/ ${totalIncome.toLocaleString()}`, icon: TrendingUp, color: GREEN, bg: "#ECFDF5", sub: `S/ ${pending.toLocaleString()} por cobrar` },
           { label: "Tasa asistencia", value: `${presenteRate}%`, icon: Activity, color: BLUE, bg: "#EFF6FF", sub: `${cancelledSessions} cancelaciones` },
         ].map(({ label, value, icon: Icon, color, bg, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-[#E2E7EF] p-5 shadow-sm">
