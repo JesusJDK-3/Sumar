@@ -123,15 +123,23 @@ export default function Patients() {
       {/* List panel */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Toolbar */}
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 lg:p-5 pb-4 bg-white border-b border-[#E2E7EF]">
-          <div>
-            <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Pacientes
-            </h1>
-            <p className="text-xs text-[#6B7A94]">{filtered.length} de {patientList.length} registros</p>
+        <div className="flex flex-col gap-3 p-4 lg:p-5 pb-4 bg-white border-b border-[#E2E7EF]">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Pacientes
+              </h1>
+              <p className="text-xs text-[#6B7A94]">{filtered.length} de {patientList.length} registros</p>
+            </div>
+            <button
+              onClick={openNew}
+              className="flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0 w-full sm:w-auto"
+            >
+              <Plus size={15} /> Nuevo paciente
+            </button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-            <div className="relative flex-1 min-w-[140px] max-w-[200px]">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7A94]" />
               <input
                 value={search}
@@ -140,11 +148,11 @@ export default function Patients() {
                 className="w-full pl-8 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]"
               />
             </div>
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-none sm:min-w-[140px]">
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value as PatientStatus | "Todos")}
-                className="appearance-none pl-3 pr-8 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8] text-[#1A2332]"
+                className="appearance-none w-full pl-3 pr-8 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8] text-[#1A2332]"
               >
                 {["Todos", "Activo", "Inactivo", "Alta", "En espera"].map(s => (
                   <option key={s}>{s}</option>
@@ -152,84 +160,80 @@ export default function Patients() {
               </select>
               <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
             </div>
-            <button
-              onClick={openNew}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0"
-            >
-              <Plus size={15} /> Nuevo paciente
-            </button>
           </div>
         </div>
 
         {/* Table */}
-        <div className="flex-1 overflow-auto p-5">
-          <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
-            <table className="w-full text-sm min-w-[800px]">
-              <thead>
-                <tr className="border-b border-[#E2E7EF]">
-                  {["Código", "Paciente", "Edad", "Diagnóstico", "Terapeuta", "Estado", ""].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F2F4F8]">
-                {filtered.map(p => {
-                  const therapist = getTherapist(p.therapistId)
-                  return (
-                    <tr
-                      key={p.id}
-                      onClick={() => setSelected(p)}
-                      className={`cursor-pointer hover:bg-[#F8F9FC] transition-colors ${selected?.id === p.id ? "bg-[#FDF0EC]" : ""}`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-[#6B7A94]">{p.code}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ background: therapist?.color || "#E8481E" }}
+        <div className="flex-1 overflow-hidden p-3 sm:p-5">
+          <div className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm h-full flex flex-col">
+            <div className="overflow-x-auto overflow-y-auto flex-1">
+              <table className="w-full text-sm min-w-max">
+                <thead className="bg-[#F8F9FC] sticky top-0">
+                  <tr className="border-b border-[#E2E7EF]">
+                    {["Código", "Paciente", "Edad", "Diagnóstico", "Terapeuta", "Estado", ""].map(h => (
+                      <th key={h} className="text-left px-3 sm:px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F2F4F8]">
+                  {filtered.map(p => {
+                    const therapist = getTherapist(p.therapistId)
+                    return (
+                      <tr
+                        key={p.id}
+                        onClick={() => setSelected(p)}
+                        className={`cursor-pointer hover:bg-[#F8F9FC] transition-colors ${selected?.id === p.id ? "bg-[#FDF0EC]" : ""}`}
+                      >
+                        <td className="px-3 sm:px-4 py-3 font-mono text-xs text-[#6B7A94] whitespace-nowrap">{p.code}</td>
+                        <td className="px-3 sm:px-4 py-3">
+                          <div className="flex items-center gap-2 min-w-[160px]">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ background: therapist?.color || "#E8481E" }}
+                            >
+                              {p.firstName[0]}{p.lastName[0]}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[#1A2332] truncate">{p.firstName} {p.lastName}</p>
+                              <p className="text-xs text-[#6B7A94] truncate">{p.dni}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] whitespace-nowrap">{p.age} años</td>
+                        <td className="px-3 sm:px-4 py-3 text-[#1A2332] max-w-[150px] sm:max-w-[200px]">
+                          <p className="truncate text-xs sm:text-sm">{p.diagnosis || "—"}</p>
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] text-xs whitespace-nowrap">
+                          {therapist ? `${therapist.firstName} ${therapist.lastName}` : "—"}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[p.status]}`}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                          <button
+                            onClick={e => { e.stopPropagation(); openEdit(p) }}
+                            className="text-xs text-[#6B7A94] hover:text-[#E8481E] font-medium transition-colors"
                           >
-                            {p.firstName[0]}{p.lastName[0]}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-[#1A2332]">{p.firstName} {p.lastName}</p>
-                            <p className="text-xs text-[#6B7A94]">{p.dni}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[#6B7A94]">{p.age} años</td>
-                      <td className="px-4 py-3 text-[#1A2332] max-w-[200px]">
-                        <p className="truncate">{p.diagnosis || "—"}</p>
-                      </td>
-                      <td className="px-4 py-3 text-[#6B7A94] text-xs">
-                        {therapist ? `${therapist.firstName} ${therapist.lastName}` : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[p.status]}`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={e => { e.stopPropagation(); openEdit(p) }}
-                          className="text-xs text-[#6B7A94] hover:text-[#E8481E] font-medium transition-colors"
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                            Editar
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Detail panel */}
       {selected && !showForm && (
-        <div className="w-full lg:w-80 bg-white border-l border-[#E2E7EF] flex flex-col overflow-hidden">
+        <div className="hidden lg:flex w-80 bg-white border-l border-[#E2E7EF] flex-col overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
             <h3 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Ficha del paciente
@@ -302,16 +306,16 @@ export default function Patients() {
       {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
-              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div className="bg-white rounded-xl sm:rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#E2E7EF] sticky top-0 bg-white">
+              <h2 className="font-bold text-[#2B3A5C] text-base sm:text-lg" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {editing ? "Editar paciente" : "Nuevo paciente"}
               </h2>
               <button onClick={() => setShowForm(false)} className="text-[#6B7A94] hover:text-[#1A2332]">
                 <X size={18} />
               </button>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Nombre" value={form.firstName} onChange={v => setForm(f => ({ ...f, firstName: v }))} />
               <FormField label="Apellidos" value={form.lastName} onChange={v => setForm(f => ({ ...f, lastName: v }))} />
               <div>
@@ -337,10 +341,10 @@ export default function Patients() {
               </div>
               <FormField label="Teléfono" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} />
               <FormField label="DNI" value={form.dni} onChange={v => setForm(f => ({ ...f, dni: v }))} />
-              <FormField label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} />
+              <FormField label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} type="email" />
               <FormField label="Dirección" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} />
-              <FormField label="Nombre del padre/apoderado" value={form.emergencyContact} onChange={v => setForm(f => ({ ...f, emergencyContact: v }))} />
-              <div className="col-span-2">
+              <FormField label="Padre/apoderado" value={form.emergencyContact} onChange={v => setForm(f => ({ ...f, emergencyContact: v }))} />
+              <div className="col-span-1 sm:col-span-2">
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Diagnóstico</label>
                 <textarea
                   value={form.diagnosis}
@@ -373,10 +377,10 @@ export default function Patients() {
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-6 pb-6">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-4 sm:px-6 pb-4 sm:pb-6 border-t border-[#E2E7EF] sticky bottom-0 bg-white">
               <button
                 onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]"
+                className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8] transition-colors"
               >
                 Cancelar
               </button>
@@ -386,7 +390,7 @@ export default function Patients() {
               className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Guardando...
                 </span>

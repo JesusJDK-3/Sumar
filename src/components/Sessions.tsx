@@ -380,140 +380,144 @@ export default function Sessions() {
         </div>
       )}
       {/* Header */}
-      <div className="bg-white border-b border-[#E2E7EF] px-4 lg:px-6 py-4 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-0 lg:justify-between">
-        <div>
+      <div className="bg-white border-b border-[#E2E7EF] px-4 lg:px-6 py-4">
+        <div className="flex flex-col gap-3">
           <h1 className="text-xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Sesiones</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[120px] max-w-[200px]">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B7A94]" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-              className="w-full pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]" />
+          <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[120px]">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B7A94]" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
+                className="w-full pl-7 pr-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]" />
+            </div>
+            <div className="relative flex-1 min-w-[140px]">
+              <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
+                className="w-full appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
+                <option value="Todos">Todos los servicios</option>
+                {services.map(s => <option key={s.id} value={s.id}>{s.number}. {s.name}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
+            </div>
+            <div className="relative flex-1 sm:flex-none">
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SessionStatus | "Todos")}
+                className="w-full appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
+                {["Todos", "Realizada", "Pendiente", "Cancelada", "Reprogramada"].map(s => <option key={s}>{s}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
+            </div>
+            <div className="flex gap-1">
+              <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
+                <button onClick={() => setViewMode("lista")}
+                  className={`px-3 py-1.5 text-xs sm:text-sm rounded-md whitespace-nowrap ${viewMode === "lista" ? "bg-white shadow-sm text-[#2B3A5C]" : "text-[#6B7A94]"}`}>
+                  Lista
+                </button>
+                <button onClick={() => setViewMode("calendario")}
+                  className={`px-3 py-1.5 text-xs sm:text-sm rounded-md whitespace-nowrap ${viewMode === "calendario" ? "bg-white shadow-sm text-[#E8481E]" : "text-[#6B7A94]"}`}>
+                  Calendario
+                </button>
+              </div>
+              <button onClick={() => { resetForm(); setShowForm(true) }}
+                className="flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-xs sm:text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0 w-full sm:w-auto">
+                <Plus size={14} /> Nueva sesión
+              </button>
+            </div>
           </div>
-          <div className="relative flex-1 min-w-[140px] max-w-[220px]">
-            <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
-              className="w-full appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8] truncate">
-              <option value="Todos">Todos los servicios</option>
-              {services.map(s => <option key={s.id} value={s.id}>{s.number}. {s.name}</option>)}
-            </select>
-            <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
-          </div>
-          <div className="relative">
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as SessionStatus | "Todos")}
-              className="appearance-none pl-3 pr-7 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] bg-[#F2F4F8]">
-              {["Todos", "Realizada", "Pendiente", "Cancelada", "Reprogramada"].map(s => <option key={s}>{s}</option>)}
-            </select>
-            <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7A94] pointer-events-none" />
-          </div>
-          <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
-            <button onClick={() => setViewMode("lista")}
-              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === "lista" ? "bg-white shadow-sm text-[#2B3A5C]" : "text-[#6B7A94]"}`}>
-              Lista
-            </button>
-            <button onClick={() => setViewMode("calendario")}
-              className={`px-3 py-1.5 text-sm rounded-md ${viewMode === "calendario" ? "bg-white shadow-sm text-[#E8481E]" : "text-[#6B7A94]"}`}>
-              Calendario
-            </button>
-          </div>
-          <button onClick={() => { resetForm(); setShowForm(true) }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#E8481E] text-white text-sm font-semibold rounded-lg hover:bg-[#C93A14] transition-colors shrink-0">
-            <Plus size={14} /> Nueva sesión
-          </button>
         </div>
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-4 p-5 pb-0">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 p-4 sm:p-5 pb-3 sm:pb-0">
         {[
           { label: "Total sesiones", value: stats.total, color: "#2B3A5C", bg: "#EEF1F8" },
           { label: "Realizadas", value: stats.realizadas, color: "#059669", bg: "#ECFDF5" },
           { label: "Pendientes", value: stats.pendientes, color: "#D97706", bg: "#FFFBEB" },
           { label: "Canceladas", value: stats.canceladas, color: "#DC2626", bg: "#FEF2F2" },
         ].map(({ label, value, color}) => (
-          <div key={label} className="bg-white rounded-xl border border-[#E2E7EF] p-4 shadow-sm">
-            <p className="text-2xl font-bold" style={{ color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
-            <p className="text-xs text-[#6B7A94] font-medium mt-0.5">{label}</p>
+          <div key={label} className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] p-3 sm:p-4 shadow-sm">
+            <p className="text-lg sm:text-2xl font-bold" style={{ color, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
+            <p className="text-xs text-[#6B7A94] font-medium mt-1 sm:mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
       {/* Table / Calendar */}
       {viewMode === "lista" ? (
-        <div className="flex-1 overflow-auto p-5">
-          <div className="bg-white rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm overflow-x-auto">
-            <table className="w-full text-sm min-w-[800px]">
-              <thead>
-                <tr className="border-b border-[#E2E7EF]">
-                  {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Sede", "Monto","Notas", "Estado", ""].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F2F4F8]">
-                {filtered.map(s => {
-                  const p = getPatient(s.patientId)
-                  const t = getTherapist(s.therapistId)
-                  const svc = s.service
-                  return (
-                    <tr key={s.id} onClick={() => openEditSession(s)} className="hover:bg-[#F8F9FC] transition-colors cursor-pointer">
-                      <td className="px-4 py-3 text-[#1A2332] font-medium">{s.date}</td>
-                      <td className="px-4 py-3 text-[#6B7A94]">{s.startTime} – {s.endTime}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                            style={{ background: t?.color || "#E8481E" }}>
-                            {p?.firstName[0]}{p?.lastName[0]}
+        <div className="flex-1 overflow-hidden p-3 sm:p-5">
+          <div className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] overflow-hidden shadow-sm h-full flex flex-col">
+            <div className="overflow-x-auto overflow-y-auto flex-1">
+              <table className="w-full text-sm min-w-max">
+                <thead className="bg-[#F8F9FC] sticky top-0">
+                  <tr className="border-b border-[#E2E7EF]">
+                    {["Fecha", "Hora", "Paciente", "Terapeuta", "Tipo", "N° Servicio", "Sede", "Monto","Notas", "Estado", ""].map(h => (
+                      <th key={h} className="text-left px-3 sm:px-4 py-3 text-xs font-semibold text-[#6B7A94] uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F2F4F8]">
+                  {filtered.map(s => {
+                    const p = getPatient(s.patientId)
+                    const t = getTherapist(s.therapistId)
+                    const svc = s.service
+                    return (
+                      <tr key={s.id} onClick={() => openEditSession(s)} className="hover:bg-[#F8F9FC] transition-colors cursor-pointer">
+                        <td className="px-3 sm:px-4 py-3 text-[#1A2332] font-medium whitespace-nowrap">{s.date}</td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] whitespace-nowrap text-xs sm:text-sm">{s.startTime} – {s.endTime}</td>
+                        <td className="px-3 sm:px-4 py-3">
+                          <div className="flex items-center gap-2 min-w-[140px] sm:min-w-0">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                              style={{ background: t?.color || "#E8481E" }}>
+                              {p?.firstName[0]}{p?.lastName[0]}
+                            </div>
+                            <span className="font-semibold text-[#1A2332] text-sm truncate">{p?.firstName} {p?.lastName}</span>
                           </div>
-                          <span className="font-semibold text-[#1A2332]">{p?.firstName} {p?.lastName}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[#6B7A94] text-xs">{t?.firstName} {t?.lastName}</td>
-                      <td className="px-4 py-3 text-[#6B7A94]">{s.type}</td>
-                      <td className="px-4 py-3">
-                        {svc ? (
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border ${getServiceColor(svc.number)}`}>
-                            <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold shrink-0">
-                              {svc.number}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] text-xs whitespace-nowrap">{t?.firstName} {t?.lastName}</td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] text-xs whitespace-nowrap">{s.type}</td>
+                        <td className="px-3 sm:px-4 py-3">
+                          {svc ? (
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border whitespace-nowrap ${getServiceColor(svc.number)}`}>
+                              <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                {svc.number}
+                              </span>
+                              <span className="hidden sm:inline truncate max-w-[180px]">{svc.name}</span>
                             </span>
-                            <span className="truncate max-w-[180px]">{svc.name}</span>
+                          ) : (
+                            <span className="text-[#6B7A94] text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] text-xs whitespace-nowrap">{s.sede?.nombre || "—"}</td>
+                        <td className="px-3 sm:px-4 py-3 font-semibold text-[#2B3A5C] whitespace-nowrap text-sm">
+                          {s.fee === 0 ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <Package size={12} /> Cubierto
+                            </span>
+                          ) : (
+                            `S/ ${s.fee}`
+                          )}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 text-[#6B7A94] text-xs max-w-[150px] truncate" title={s.notes || ""}>
+                          {s.notes || "—"}
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
+                            {s.status}
                           </span>
-                        ) : (
-                          <span className="text-[#6B7A94] text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-[#6B7A94] text-xs">{s.sede?.nombre || "—"}</td>
-                      <td className="px-4 py-3 font-semibold text-[#2B3A5C]">
-                        {s.fee === 0 ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600">
-                            <Package size={12} /> Cubierto
-                          </span>
-                        ) : (
-                          `S/ ${s.fee}`
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-[#6B7A94] text-xs max-w-[150px] truncate" title={s.notes || ""}>
-                        {s.notes || "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
-                          {s.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={s.status}
-                          onChange={e => handleStatusChange(s.id, e.target.value as SessionStatus)}
-                          className="text-xs border border-[#E2E7EF] rounded px-1 py-0.5 bg-white outline-none"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {["Pendiente", "Realizada", "Cancelada", "Reprogramada"].map(st => <option key={st}>{st}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                          <select
+                            value={s.status}
+                            onChange={e => handleStatusChange(s.id, e.target.value as SessionStatus)}
+                            className="text-xs border border-[#E2E7EF] rounded px-1 py-0.5 bg-white outline-none"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {["Pendiente", "Realizada", "Cancelada", "Reprogramada"].map(st => <option key={st}>{st}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ) : (
@@ -528,33 +532,33 @@ export default function Sessions() {
       {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
-              <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div className="bg-white rounded-lg sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#E2E7EF] sticky top-0 bg-white">
+              <h2 className="font-bold text-[#2B3A5C] text-base sm:text-lg" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {formMode === "sesion" ? "Nueva sesión" : "Nuevo paquete de sesiones"}
               </h2>
               <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
 
             {/* Toggle Individual / Paquete */}
-            <div className="px-6 pt-4">
+            <div className="px-4 sm:px-6 pt-4">
               <div className="flex bg-[#F2F4F8] rounded-lg p-0.5">
                 <button 
                   onClick={() => setFormMode("sesion")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${formMode === "sesion" ? "bg-white text-[#2B3A5C] shadow-sm" : "text-[#6B7A94]"}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-md transition-colors ${formMode === "sesion" ? "bg-white text-[#2B3A5C] shadow-sm" : "text-[#6B7A94]"}`}
                 >
                   Sesión individual
                 </button>
                 <button 
                   onClick={() => setFormMode("paquete")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md transition-colors ${formMode === "paquete" ? "bg-white text-[#E8481E] shadow-sm" : "text-[#6B7A94]"}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm rounded-md transition-colors ${formMode === "paquete" ? "bg-white text-[#E8481E] shadow-sm" : "text-[#6B7A94]"}`}
                 >
                   <Package size={14} /> Paquete
                 </button>
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Paciente</label>
                 <select value={form.patientId} onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}
@@ -713,15 +717,15 @@ export default function Sessions() {
                   className="w-full px-3 py-2 text-sm border border-[#E2E7EF] rounded-lg outline-none focus:border-[#E8481E] resize-none" />
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-4 sm:px-6 pb-4 sm:pb-6 border-t border-[#E2E7EF] sticky bottom-0 bg-white">
+              <button onClick={() => { setShowForm(false); setFormMode("sesion"); setActivePackage(null); setPackagePrice(0) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8] transition-colors">Cancelar</button>
               <button 
                 onClick={handleSave} 
                 disabled={isSubmitting}
                 className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Guardando...
                   </span>
@@ -737,13 +741,13 @@ export default function Sessions() {
       {/* Modal de edición de sesión (solo campos no sensibles) */}
       {editingSession && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E7EF]">
+          <div className="bg-white rounded-lg sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#E2E7EF] sticky top-0 bg-white">
               <div>
-                <h2 className="font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                <h2 className="font-bold text-[#2B3A5C] text-base sm:text-lg" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Editar sesión
                 </h2>
-                <p className="text-xs text-[#6B7A94] mt-0.5">
+                <p className="text-xs text-[#6B7A94] mt-0.5 truncate">
                   {getPatient(editingSession.patientId)?.firstName} {getPatient(editingSession.patientId)?.lastName}
                   {editingSession.service ? ` · ${editingSession.service.number}. ${editingSession.service.name}` : ""}
                 </p>
@@ -751,7 +755,7 @@ export default function Sessions() {
               <button onClick={() => setEditingSession(null)}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#6B7A94] mb-1">Fecha</label>
@@ -797,8 +801,8 @@ export default function Sessions() {
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 px-6 pb-6">
-              <button onClick={() => setEditingSession(null)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 px-4 sm:px-6 pb-4 sm:pb-6 border-t border-[#E2E7EF] sticky bottom-0 bg-white">
+              <button onClick={() => setEditingSession(null)} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8] transition-colors">
                 Cancelar
               </button>
               <button
@@ -807,7 +811,7 @@ export default function Sessions() {
                 className="px-5 py-2 text-sm font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSavingEdit ? (
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Guardando...
                   </span>

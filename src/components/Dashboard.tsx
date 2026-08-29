@@ -116,55 +116,55 @@ export default function Dashboard({ onNavigate }: Props) {
         </div>
       )}
       {/* Header */}
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <div className="mb-6 sm:mb-7 px-4 sm:px-6 pt-4 sm:pt-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-[#2B3A5C]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           Buenos días, {profile?.fullName || "Administrador"}
         </h1>
         <p className="text-sm text-[#6B7A94] mt-0.5 capitalize">{todayFormatted}</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6 px-4 sm:px-6">
         {stats.map(({ label, value, icon: Icon, color, bg, page }) => (
           <button
             key={label}
             onClick={() => onNavigate(page)}
-            className="bg-white rounded-xl p-5 text-left shadow-sm border border-[#E2E7EF] hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-5 text-left shadow-sm border border-[#E2E7EF] hover:shadow-md transition-shadow"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div style={{ background: bg }} className="w-10 h-10 rounded-lg flex items-center justify-center">
-                <Icon size={20} style={{ color }} />
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <div style={{ background: bg }} className="w-8 sm:w-10 h-8 sm:h-10 rounded-lg flex items-center justify-center">
+                <Icon size={16} style={{ color }} />
               </div>
             </div>
-            <p className="text-2xl font-bold text-[#1A2332]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <p className="text-lg sm:text-2xl font-bold text-[#1A2332]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               {value}
             </p>
-            <p className="text-xs text-[#6B7A94] mt-0.5 font-medium">{label}</p>
+            <p className="text-[10px] sm:text-xs text-[#6B7A94] mt-1 sm:mt-0.5 font-medium line-clamp-2">{label}</p>
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 px-4 sm:px-6 pb-6">
         {/* Today's agenda */}
-        <div className="bg-white rounded-xl border border-[#E2E7EF] shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
+        <div className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] shadow-sm overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-[#E2E7EF]">
             <h2 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Agenda de hoy
             </h2>
-            <button onClick={() => onNavigate("agenda")} className="text-xs text-[#E8481E] hover:underline font-medium">
+            <button onClick={() => onNavigate("agenda")} className="text-xs text-[#E8481E] hover:underline font-medium whitespace-nowrap ml-2">
               Ver agenda →
             </button>
           </div>
-          <div className="divide-y divide-[#F2F4F8]">
+          <div className="divide-y divide-[#F2F4F8] flex-1 overflow-y-auto">
             {todayApts.length === 0 && (
-              <p className="text-sm text-[#6B7A94] p-5">No hay citas para hoy.</p>
+              <p className="text-sm text-[#6B7A94] p-4 sm:p-5">No hay citas para hoy.</p>
             )}
             {todayApts.map(apt => {
               const patient = getPatient(apt.patientId)
               const therapist = getTherapist(apt.therapistId)
               return (
-                <div key={apt.id} className="flex items-center gap-4 px-5 py-3">
-                  <div className="text-center w-14 shrink-0">
+                <div key={apt.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3">
+                  <div className="text-center w-12 sm:w-14 shrink-0">
                     <p className="text-xs font-bold text-[#2B3A5C]">{apt.startTime}</p>
                     <p className="text-[10px] text-[#6B7A94]">{apt.endTime}</p>
                   </div>
@@ -176,9 +176,9 @@ export default function Dashboard({ onNavigate }: Props) {
                     <p className="text-sm font-semibold text-[#1A2332] truncate">
                       {patient?.firstName} {patient?.lastName}
                     </p>
-                    <p className="text-xs text-[#6B7A94]">{therapist?.firstName} {therapist?.lastName}</p>
+                    <p className="text-xs text-[#6B7A94] truncate">{therapist?.firstName} {therapist?.lastName}</p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     {aptStatusIcon(apt.status)}
                     <span className="text-xs text-[#6B7A94]">{apt.status}</span>
                   </div>
@@ -189,21 +189,21 @@ export default function Dashboard({ onNavigate }: Props) {
         </div>
 
         {/* Recent sessions */}
-        <div className="bg-white rounded-xl border border-[#E2E7EF] shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
+        <div className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] shadow-sm overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-[#E2E7EF]">
             <h2 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Sesiones recientes
             </h2>
-            <button onClick={() => onNavigate("sessions")} className="text-xs text-[#E8481E] hover:underline font-medium">
+            <button onClick={() => onNavigate("sessions")} className="text-xs text-[#E8481E] hover:underline font-medium whitespace-nowrap ml-2">
               Ver todas →
             </button>
           </div>
-          <div className="divide-y divide-[#F2F4F8]">
+          <div className="divide-y divide-[#F2F4F8] flex-1 overflow-y-auto">
             {recentSessions.map(s => {
               const patient = getPatient(s.patientId)
               const therapist = getTherapist(s.therapistId)
               return (
-                <div key={s.id} className="flex items-center gap-4 px-5 py-3">
+                <div key={s.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold"
                     style={{ background: therapist?.color || "#E8481E" }}
                   >
@@ -215,7 +215,7 @@ export default function Dashboard({ onNavigate }: Props) {
                     </p>
                     <p className="text-xs text-[#6B7A94]">{s.date} · {s.startTime}</p>
                   </div>
-                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusColor[s.status]}`}>
+                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${statusColor[s.status]}`}>
                     {s.status}
                   </span>
                 </div>
@@ -225,16 +225,16 @@ export default function Dashboard({ onNavigate }: Props) {
         </div>
 
         {/* Pending payments */}
-        <div className="bg-white rounded-xl border border-[#E2E7EF] shadow-sm overflow-hidden lg:col-span-2">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E7EF]">
+        <div className="bg-white rounded-lg sm:rounded-xl border border-[#E2E7EF] shadow-sm overflow-hidden flex flex-col lg:col-span-2">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-[#E2E7EF]">
             <h2 className="font-semibold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Cuentas por cobrar
             </h2>
-            <button onClick={() => onNavigate("payments")} className="text-xs text-[#E8481E] hover:underline font-medium">
+            <button onClick={() => onNavigate("payments")} className="text-xs text-[#E8481E] hover:underline font-medium whitespace-nowrap ml-2">
               Ver pagos →
             </button>
           </div>
-          <div className="divide-y divide-[#F2F4F8]">
+          <div className="divide-y divide-[#F2F4F8] flex-1 overflow-y-auto">
             {sessions
               .filter(s => s.status === "Realizada")
               .map(s => {
@@ -243,7 +243,7 @@ export default function Dashboard({ onNavigate }: Props) {
                 const debt = s.fee - paid
                 if (debt <= 0) return null
                 return (
-                  <div key={s.id} className="flex items-center gap-4 px-5 py-3">
+                  <div key={s.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3">
                     <AlertCircle size={16} className="text-amber-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-[#1A2332] truncate">
@@ -253,7 +253,7 @@ export default function Dashboard({ onNavigate }: Props) {
                         {s.date} · {s.type} · Pagado: S/ {paid} / S/ {s.fee}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-amber-600">S/ {debt}</span>
+                    <span className="text-sm font-bold text-amber-600 shrink-0">S/ {debt}</span>
                   </div>
                 )
               })
@@ -263,7 +263,7 @@ export default function Dashboard({ onNavigate }: Props) {
                 const service = pkg.services
                 const remaining = (pkg.total_amount || 0) - (pkg.amount_paid || 0)
                 return (
-                  <div key={pkg.id} className="flex items-center gap-4 px-5 py-3">
+                  <div key={pkg.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3">
                     <AlertCircle size={16} className="text-amber-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-[#1A2332] truncate">
@@ -273,7 +273,7 @@ export default function Dashboard({ onNavigate }: Props) {
                         Paquete: {service?.name} · Pagado: S/ {pkg.amount_paid || 0} / S/ {pkg.total_amount || 0}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-amber-600">S/ {remaining}</span>
+                    <span className="text-sm font-bold text-amber-600 shrink-0">S/ {remaining}</span>
                   </div>
                 )
               })}
