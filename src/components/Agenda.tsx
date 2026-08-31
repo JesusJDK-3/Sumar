@@ -41,6 +41,10 @@ export default function Agenda() {
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
+  const [mobileDayIndex, setMobileDayIndex] = useState(() => {
+    const d = new Date().getDay()
+    return d === 0 ? 6 : d - 1
+  })
   const [form, setForm] = useState<Partial<Appointment>>({
     patientId: "",
     therapistId: "",
@@ -94,6 +98,8 @@ export default function Agenda() {
   }, [])
 
   const week = getWeekDates(currentWeek)
+
+  const mobileDay = week[mobileDayIndex]
 
   const handleQuickPatient = async () => {
     if (isSavingQuickPatientRef.current) return
@@ -180,6 +186,14 @@ export default function Agenda() {
     d.setDate(d.getDate() + 7)
     setCurrentWeek(d)
   }
+  const prevDay = () => {
+    if (mobileDayIndex === 0) { prevWeek(); setMobileDayIndex(6) }
+    else setMobileDayIndex(i => i - 1)
+  }
+  const nextDay = () => {
+    if (mobileDayIndex === 6) { nextWeek(); setMobileDayIndex(0) }
+    else setMobileDayIndex(i => i + 1)
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-[#6B7A94] text-sm">Cargando agenda...</div>
@@ -235,8 +249,63 @@ export default function Agenda() {
       <div className="flex flex-1 overflow-hidden">
         {/* Calendar grid */}
         <div className="flex-1 overflow-auto">
-          <div className="min-w-[700px]">
-            {/* Day headers */}
+
+          {/* Mobile: un solo día */}
+          <div className="sm:hidden">
+            <div className="flex items-center justify-between px-2 py-3 bg-white border-b border-[#E2E7EF] sticky top-0 z-10">
+              <button onClick={prevDay} className="p-2 border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+                <ChevronLeft size={16} className="text-[#6B7A94]" />
+              </button>
+              <div className="text-center">
+                <p className="text-xs font-medium text-[#6B7A94]">{DAYS[mobileDay.getDay()]}</p>
+                <p className={`text-sm font-bold ${dateStr(mobileDay) === dateStr(new Date()) ? "text-[#E8481E]" : "text-[#1A2332]"}`}>
+                  {mobileDay.getDate()} de {MONTHS[mobileDay.getMonth()]}
+                </p>
+              </div>
+              <button onClick={nextDay} className="p-2 border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+                <ChevronRight size={16} className="text-[#6B7A94]" />
+              </button>
+            </div>
+
+            {HOURS.map(hour => {
+              const dayStr = dateStr(mobileDay)
+              const dayApts = apts.filter(a => {
+                if (a.date !== dayStr) return false
+                return (a.startTime?.slice(0, 2) + ":00") === hour
+              })
+              return (
+                <div key={hour} className="grid border-b border-[#F2F4F8]" style={{ gridTemplateColumns: "56px 1fr" }}>
+                  <div className="border-r border-[#E2E7EF] px-2 py-3 text-xs font-medium text-[#9AA5BE] text-right">
+                    {hour}
+                  </div>
+                  <div className="p-1 min-h-[64px] relative">
+                    {dayApts.map(a => {
+                      const p = patients.find(p => p.id === a.patientId)
+                      const t = therapists.find(t => t.id === a.therapistId)
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => setSelectedApt(a)}
+                          className={`w-full text-left px-2 py-1.5 rounded-md mb-1 text-xs font-medium transition-colors ${
+                            a.status === "Confirmada" ? "bg-[#EEF1F8] text-[#2B3A5C] border border-[#2B3A5C]/10" :
+                            a.status === "Cancelada" ? "bg-red-50 text-red-700 border border-red-100" :
+                            "bg-[#FDF0EC] text-[#E8481E] border border-[#E8481E]/10"
+                          }`}
+                        >
+                          <p className="font-semibold truncate">{p?.firstName} {p?.lastName}</p>
+                          <p className="text-[10px] opacity-75">{t?.firstName} {t?.lastName}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop: semana completa */}
+          <div className="hidden sm:block min-w-[700px]">
+                        {/* Day headers */}
             <div className="grid bg-white border-b border-[#E2E7EF] sticky top-0 z-10" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
               <div className="border-r border-[#E2E7EF]" />
               {week.map(d => {
@@ -258,7 +327,7 @@ export default function Agenda() {
                 </div>
                 {week.map(d => {
                   const dayStr = dateStr(d)
-                  const dayApts = apts.filter(a => a.date === dayStr && a.startTime?.startsWith(hour))
+                  const dayApts = apts.filter(a => a.date === dayStr && (a.startTime?.slice(0, 2) + ":00") === hour)
                   return (
                     <div key={d.getDay() + hour} className="border-r border-[#E2E7EF] p-1 min-h-[64px] relative">
                       {dayApts.map(a => {
@@ -274,7 +343,7 @@ export default function Agenda() {
                               "bg-[#FDF0EC] text-[#E8481E] border border-[#E8481E]/10"
                             }`}
                           >
-                            <p className="font-semibold truncate">{p?.firstName} {p?.lastName}</p>
+                            <p className="font-semibold truncate">{p?.firstName} </p>
                             <p className="text-[10px] opacity-75">{t?.firstName} {t?.lastName}</p>
                           </button>
                         )
@@ -284,7 +353,7 @@ export default function Agenda() {
                 })}
               </div>
             ))}
-          </div>
+          </div> 
         </div>
 
         {/* Side panel - appointment detail */}
