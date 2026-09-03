@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react"
-import { Search, Plus, X, TrendingUp, Brain, Target, ChevronDown, Calendar } from "lucide-react"
+import { Search, Plus, X, TrendingUp, Brain, Target, ChevronDown, Calendar, FileDown } from "lucide-react"
 import { getClinicalRecords, createClinicalRecord, getSessionsWithoutRecord } from "../lib/api/clinicalRecords"
 import { getPatients } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
+import { generateClinicalRecordPdf } from "../lib/api/clinicalRecordPdf"
+import sumarIcon from "../imports/sumar_icon.png"
 import type { ClinicalRecord, Patient, Therapist, Session } from "../types"
 
 // Mapa de ánimo a progreso automático
@@ -28,6 +30,7 @@ export default function ClinicalRecords() {
   const [sessionsWithoutRecord, setSessionsWithoutRecord] = useState<Session[]>([])
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   const isSavingRef = useRef(false)
 
   useEffect(() => {
@@ -136,6 +139,18 @@ export default function ClinicalRecords() {
     if (m <= 2) return "text-red-500"
     if (m === 3) return "text-amber-500"
     return "text-emerald-500"
+  }
+
+  const handleGeneratePdf = async () => {
+    if (!selectedRecord) return
+    setIsGeneratingPdf(true)
+    try {
+      await generateClinicalRecordPdf(selectedRecord, patient, therapist, sumarIcon)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al generar el PDF")
+    } finally {
+      setIsGeneratingPdf(false)
+    }
   }
 
   return (
@@ -306,7 +321,18 @@ export default function ClinicalRecords() {
                 <h3 className="font-bold text-[#2B3A5C] text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Sesión #{selectedRecord.sessionNumber}
                 </h3>
-                <button onClick={() => setSelectedRecord(null)}><X size={16} className="text-[#6B7A94]" /></button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleGeneratePdf}
+                    disabled={isGeneratingPdf}
+                    title="Generar PDF"
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-[#E8481E] border border-[#E8481E]/20 rounded-lg hover:bg-[#FDF0EC] disabled:opacity-60"
+                  >
+                    <FileDown size={13} />
+                    {isGeneratingPdf ? "Generando..." : "PDF"}
+                  </button>
+                  <button onClick={() => setSelectedRecord(null)}><X size={16} className="text-[#6B7A94]" /></button>
+                </div>
               </div>
               <div className="space-y-5">
                 <Section icon={Target} title="Objetivos" content={selectedRecord.objectives} />
