@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
-import { getAppointments, createAppointment, updateAppointmentStatus } from "../lib/api/appointments"
+import { getAppointments, createAppointment, updateAppointmentStatus, deleteAppointment, updateAppointment } from "../lib/api/appointments"
 import { getPatients, createPatient } from "../lib/api/patients"
 import { getTherapists } from "../lib/api/therapists"
 import { getServices } from "../lib/api/services"
@@ -41,6 +41,11 @@ export default function Agenda() {
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [mobileDayIndex, setMobileDayIndex] = useState(() => {
+    const d = new Date().getDay()
+    return d === 0 ? 6 : d - 1
+  })
   const [form, setForm] = useState<Partial<Appointment>>({
     patientId: "",
     therapistId: "",
@@ -95,6 +100,8 @@ export default function Agenda() {
 
   const week = getWeekDates(currentWeek)
 
+  const mobileDay = week[mobileDayIndex]
+
   const handleQuickPatient = async () => {
     if (isSavingQuickPatientRef.current) return
     isSavingQuickPatientRef.current = true
@@ -138,7 +145,7 @@ export default function Agenda() {
     setError(null)
 
     try {
-      const created = await createAppointment({
+      const payload = {
         patientId: form.patientId!,
         therapistId: form.therapistId!,
         serviceId: form.serviceId,
@@ -148,16 +155,41 @@ export default function Agenda() {
         type: form.type!,
         status: form.status as AppointmentStatus,
         notes: form.notes || "",
-      })
-      setApts(prev => [...prev, created])
+      }
+
+      if (editingId) {
+        const updated = await updateAppointment(editingId, payload)
+        setApts(prev => prev.map(a => a.id === editingId ? updated : a))
+        if (selectedApt?.id === editingId) setSelectedApt(updated)
+      } else {
+        const created = await createAppointment(payload)
+        setApts(prev => [...prev, created])
+      }
       setShowForm(false)
       setShowQuickPatient(false)
+      setEditingId(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al agendar cita")
     } finally {
       isSavingRef.current = false
       setIsSubmitting(false)
     }
+  }
+
+  const handleEditClick = (a: Appointment) => {
+    setForm({
+      patientId: a.patientId,
+      therapistId: a.therapistId,
+      serviceId: a.serviceId,
+      date: a.date,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      type: a.type,
+      status: a.status,
+      notes: a.notes || "",
+    })
+    setEditingId(a.id)
+    setShowForm(true)
   }
 
   const updateStatus = async (id: string, status: AppointmentStatus) => {
@@ -170,6 +202,17 @@ export default function Agenda() {
     }
   }
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar esta cita? Esta acción no se puede deshacer.")) return
+    try {
+      await deleteAppointment(id)
+      setApts(prev => prev.filter(a => a.id !== id))
+      setSelectedApt(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al eliminar la cita")
+    }
+  }
+
   const prevWeek = () => {
     const d = new Date(currentWeek)
     d.setDate(d.getDate() - 7)
@@ -179,6 +222,14 @@ export default function Agenda() {
     const d = new Date(currentWeek)
     d.setDate(d.getDate() + 7)
     setCurrentWeek(d)
+  }
+  const prevDay = () => {
+    if (mobileDayIndex === 0) { prevWeek(); setMobileDayIndex(6) }
+    else setMobileDayIndex(i => i - 1)
+  }
+  const nextDay = () => {
+    if (mobileDayIndex === 6) { nextWeek(); setMobileDayIndex(0) }
+    else setMobileDayIndex(i => i + 1)
   }
 
   if (loading) {
@@ -214,6 +265,7 @@ export default function Agenda() {
             setShowForm(true)
             setShowQuickPatient(false)
             setSelectedApt(null)
+            setEditingId(null)
             setForm({
               patientId: "",
               therapistId: therapists[0]?.id || "",
@@ -235,7 +287,62 @@ export default function Agenda() {
       <div className="flex flex-1 overflow-hidden">
         {/* Calendar grid */}
         <div className="flex-1 overflow-auto">
-          <div className="min-w-[700px]">
+
+          {/* Mobile: un solo día */}
+          <div className="sm:hidden">
+            <div className="flex items-center justify-between px-2 py-3 bg-white border-b border-[#E2E7EF] sticky top-0 z-10">
+              <button onClick={prevDay} className="p-2 border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+                <ChevronLeft size={16} className="text-[#6B7A94]" />
+              </button>
+              <div className="text-center">
+                <p className="text-xs font-medium text-[#6B7A94]">{DAYS[mobileDay.getDay()]}</p>
+                <p className={`text-sm font-bold ${dateStr(mobileDay) === dateStr(new Date()) ? "text-[#E8481E]" : "text-[#1A2332]"}`}>
+                  {mobileDay.getDate()} de {MONTHS[mobileDay.getMonth()]}
+                </p>
+              </div>
+              <button onClick={nextDay} className="p-2 border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+                <ChevronRight size={16} className="text-[#6B7A94]" />
+              </button>
+            </div>
+
+            {HOURS.map(hour => {
+              const dayStr = dateStr(mobileDay)
+              const dayApts = apts.filter(a => {
+                if (a.date !== dayStr) return false
+                return (a.startTime?.slice(0, 2) + ":00") === hour
+              })
+              return (
+                <div key={hour} className="grid border-b border-[#F2F4F8]" style={{ gridTemplateColumns: "56px 1fr" }}>
+                  <div className="border-r border-[#E2E7EF] px-2 py-3 text-xs font-medium text-[#9AA5BE] text-right">
+                    {hour}
+                  </div>
+                  <div className="p-1 min-h-[64px] relative">
+                    {dayApts.map(a => {
+                      const p = patients.find(p => p.id === a.patientId)
+                      const t = therapists.find(t => t.id === a.therapistId)
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => setSelectedApt(a)}
+                          className={`w-full text-left px-2 py-1.5 rounded-md mb-1 text-xs font-medium transition-colors ${
+                            a.status === "Confirmada" ? "bg-[#EEF1F8] text-[#2B3A5C] border border-[#2B3A5C]/10" :
+                            a.status === "Cancelada" ? "bg-red-50 text-red-700 border border-red-100" :
+                            "bg-[#FDF0EC] text-[#E8481E] border border-[#E8481E]/10"
+                          }`}
+                        >
+                          <p className="font-semibold truncate">{p?.firstName} {p?.lastName}</p>
+                          <p className="text-[10px] opacity-75">{t?.firstName} {t?.lastName}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop: semana completa */}
+          <div className="hidden sm:block min-w-[700px]">
             {/* Day headers */}
             <div className="grid bg-white border-b border-[#E2E7EF] sticky top-0 z-10" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
               <div className="border-r border-[#E2E7EF]" />
@@ -258,7 +365,7 @@ export default function Agenda() {
                 </div>
                 {week.map(d => {
                   const dayStr = dateStr(d)
-                  const dayApts = apts.filter(a => a.date === dayStr && a.startTime?.startsWith(hour))
+                  const dayApts = apts.filter(a => a.date === dayStr && (a.startTime?.slice(0, 2) + ":00") === hour)
                   return (
                     <div key={d.getDay() + hour} className="border-r border-[#E2E7EF] p-1 min-h-[64px] relative">
                       {dayApts.map(a => {
@@ -305,6 +412,10 @@ export default function Agenda() {
               <Row label="Notas" value={selectedApt.notes || "-"} />
             </div>
             <div className="flex gap-2 mt-5">
+              <button onClick={() => handleEditClick(selectedApt)}
+                className="flex-1 px-3 py-2 text-xs font-semibold text-[#2B3A5C] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">
+                Editar
+              </button>
               {selectedApt.status === "Pendiente" && (
                 <button onClick={() => updateStatus(selectedApt.id, "Confirmada")}
                   className="flex-1 px-3 py-2 text-xs font-semibold bg-[#E8481E] text-white rounded-lg hover:bg-[#C93A14]">
@@ -318,6 +429,10 @@ export default function Agenda() {
                 </button>
               )}
             </div>
+            <button onClick={() => handleDelete(selectedApt.id)}
+              className="w-full mt-2 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
+              Eliminar
+            </button>
           </div>
         )}
       </div>
@@ -327,8 +442,8 @@ export default function Agenda() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[#2B3A5C]">Nueva cita</h3>
-              <button onClick={() => { setShowForm(false); setShowQuickPatient(false) }}><X size={18} className="text-[#6B7A94]" /></button>
+              <h3 className="text-lg font-bold text-[#2B3A5C]">{editingId ? "Editar cita" : "Nueva cita"}</h3>
+              <button onClick={() => { setShowForm(false); setShowQuickPatient(false); setEditingId(null) }}><X size={18} className="text-[#6B7A94]" /></button>
             </div>
 
             <div className="space-y-4">
@@ -467,7 +582,7 @@ export default function Agenda() {
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => { setShowForm(false); setShowQuickPatient(false) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
+              <button onClick={() => { setShowForm(false); setShowQuickPatient(false); setEditingId(null) }} className="px-4 py-2 text-sm font-semibold text-[#6B7A94] border border-[#E2E7EF] rounded-lg hover:bg-[#F2F4F8]">Cancelar</button>
               <button
                 onClick={handleSave}
                 disabled={isSubmitting}
@@ -479,7 +594,7 @@ export default function Agenda() {
                     Guardando...
                   </span>
                 ) : (
-                  "Agendar cita"
+                  editingId ? "Guardar cambios" : "Agendar cita"
                 )}
               </button>
             </div>

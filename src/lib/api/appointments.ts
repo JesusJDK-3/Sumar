@@ -100,3 +100,30 @@ export async function updateAppointmentStatus(id: string, status: AppointmentSta
   if (error) throw error
   return rowToAppointment(data as AppointmentRow)
 }
+
+export async function deleteAppointment(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+
+export async function updateAppointment(id: string, appt: Omit<Appointment, 'id'>): Promise<Appointment> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .update(appointmentToRow(appt))
+    .eq('id', id)
+    .select('*, services!left(*)')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('Conflicto de horario: el terapeuta ya tiene una cita en esa fecha y hora.')
+    }
+    throw error
+  }
+  return rowToAppointment(data as AppointmentRow)
+}
