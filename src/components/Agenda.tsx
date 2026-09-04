@@ -381,7 +381,7 @@ export default function Agenda() {
                               "bg-[#FDF0EC] text-[#E8481E] border border-[#E8481E]/10"
                             }`}
                           >
-                            <p className="font-semibold truncate">{p?.firstName} {p?.lastName}</p>
+                            <p className="font-semibold truncate">{p?.firstName} </p>
                             <p className="text-[10px] opacity-75">{t?.firstName} {t?.lastName}</p>
                           </button>
                         )
