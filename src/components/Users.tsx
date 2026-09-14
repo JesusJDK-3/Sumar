@@ -23,20 +23,21 @@ const ALL_PAGES: { key: keyof UserPermissions; label: string }[] = [
   { key: "attendance", label: "Asistencia" },
   { key: "reports", label: "Reportes" },
   { key: "users", label: "Usuarios" },
+  { key: "adminHub", label: "Panel Admin" },
 ]
 
 const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
   admin: {
     dashboard: true, patients: true, clinical: true, sessions: true,
-    payments: true, agenda: true, attendance: true, reports: true, users: true,
+    payments: true, agenda: true, attendance: true, reports: true, users: true, adminHub: true,
   },
   coordinacion: {
     dashboard: true, patients: true, clinical: true, sessions: true,
-    payments: true, agenda: true, attendance: true, reports: true, users: false,
+    payments: true, agenda: true, attendance: true, reports: true, users: false, adminHub: false,
   },
   psicologia: {
     dashboard: false, patients: false, clinical: true, sessions: false,
-    payments: false, agenda: false, attendance: false, reports: false, users: false,
+    payments: false, agenda: false, attendance: false, reports: false, users: false, adminHub: false,
   },
 }
 

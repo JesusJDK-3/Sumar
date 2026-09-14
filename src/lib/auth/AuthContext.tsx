@@ -14,6 +14,7 @@ export interface UserPermissions {
   attendance: boolean
   reports: boolean
   users: boolean
+  adminHub?: boolean
 }
 
 // Permisos por defecto según rol
@@ -28,6 +29,7 @@ const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
     attendance: true,
     reports: true,
     users: true,
+    adminHub: true,
   },
   coordinacion: {
     dashboard: true,
@@ -39,6 +41,7 @@ const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
     attendance: true,
     reports: true,
     users: false,
+    adminHub: false,
   },
   psicologia: {
     dashboard: false,
@@ -50,6 +53,7 @@ const DEFAULT_PERMISSIONS: Record<UserRole, UserPermissions> = {
     attendance: false,
     reports: false,
     users: false,
+    adminHub: false,
   },
 }
 
@@ -89,7 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     const savedPermissions = data.permissions as UserPermissions | null
-    const permissions = savedPermissions || DEFAULT_PERMISSIONS[data.role as UserRole]
+    const defaultPerms = DEFAULT_PERMISSIONS[data.role as UserRole] || DEFAULT_PERMISSIONS.psicologia
+    const permissions: UserPermissions = {
+      ...defaultPerms,
+      ...(savedPermissions || {}),
+      ...(data.role === 'admin' ? { adminHub: true, users: true } : {}),
+    }
 
       setProfile({
         id: data.id,

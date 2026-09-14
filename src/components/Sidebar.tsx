@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Wrench,
 } from "lucide-react"
 import { useAuth } from "../lib/auth/AuthContext"
 import type { UserPermissions } from "../lib/auth/AuthContext"
@@ -25,6 +26,7 @@ export type Page =
   | "attendance"
   | "reports"
   | "users"
+  | "adminHub"
 
 const allNavItems: {
   id: Page
@@ -41,6 +43,7 @@ const allNavItems: {
   { id: "attendance", label: "Asistencia", icon: UserCheck, permKey: "attendance" },
   { id: "reports", label: "Reportes", icon: BarChart3, permKey: "reports" },
   { id: "users", label: "Usuarios", icon: Settings, permKey: "users" },
+  { id: "adminHub", label: "Panel Admin", icon: Wrench, permKey: "adminHub" },
 ]
 
 interface Props {

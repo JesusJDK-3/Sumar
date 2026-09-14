@@ -38,6 +38,7 @@ export interface UserPermissions {
   attendance: boolean
   reports: boolean
   users: boolean // solo admin
+  adminHub?: boolean // solo admin
 }
 
 export interface Profile {
@@ -153,6 +154,7 @@ export interface PatientPackage {
   totalSessions: number
   usedSessions: number
   amountPaid: number
+  totalAmount?: number
   paymentId: string
   status: 'activo' | 'completado' | 'cancelado'
   createdAt: string

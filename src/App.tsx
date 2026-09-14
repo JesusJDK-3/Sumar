@@ -10,6 +10,7 @@ import Attendance from "./components/Attendance"
 import Reports from "./components/Reports"
 import Login from "./components/Login"
 import Users from "./components/Users"
+import AdminHub from "./components/AdminHub"
 import { useEffect } from "react"
 import { AuthProvider, useAuth } from "./lib/auth/AuthContext"
 
@@ -17,6 +18,7 @@ import { AuthProvider, useAuth } from "./lib/auth/AuthContext"
 function AppContent() {
   const { session, profile, loading, signOut } = useAuth()
   const [page, setPage] = useState<Page>("dashboard")
+  const [adminPatientId, setAdminPatientId] = useState<string | undefined>(undefined)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -30,6 +32,7 @@ function AppContent() {
   { id: "attendance", permKey: "attendance" },
   { id: "reports", permKey: "reports" },
   { id: "users", permKey: "users" },
+  { id: "adminHub", permKey: "adminHub" },
 ]
 
   useEffect(() => {
@@ -67,6 +70,7 @@ function AppContent() {
       case "attendance": return <Attendance />
       case "reports": return <Reports />
       case "users": return <Users />
+      case "adminHub": return <AdminHub />
     }
   }
 
