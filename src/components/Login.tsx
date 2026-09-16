@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useAuth } from "../lib/auth/AuthContext"
-import { Heart, Shield, Users, Eye, EyeOff } from "lucide-react"
+import { Heart, Shield, Users, Eye, EyeOff, ShieldCheck } from "lucide-react"
 import sumarfondo from "../imports/sumar_fondo.jpg";
 import sumarIcon from "../imports/sumar_icon.png";
+import LegalTermsModal from "./LegalTermsModal";
 
 
 export default function Login() {
@@ -12,6 +13,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showLegal, setShowLegal] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +28,7 @@ export default function Login() {
     <div className="flex h-screen w-full">
       {/* Left side - Image & branding */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative flex-col justify-between p-10 overflow-hidden">
-        {/* Background image - REPLACE THIS URL with your own */}
+        {/* Background image */}
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -75,10 +77,17 @@ export default function Login() {
         </div>
 
         {/* Bottom content */}
-        <div className="relative z-10">
-          <p className="text-white/40 text-xs">
-            © 2026 Sumar Centro de Atención Familiar. Todos los derechos reservados.
+        <div className="relative z-10 flex items-center justify-between text-xs text-white/50">
+          <p>
+            © 2026 Sumar Centro de Atención Familiar.
           </p>
+          <button
+            onClick={() => setShowLegal(true)}
+            className="hover:text-white transition-colors underline underline-offset-2 flex items-center gap-1.5"
+          >
+            <ShieldCheck size={14} />
+            Términos y Aviso Legal
+          </button>
         </div>
       </div>
 
@@ -150,8 +159,6 @@ export default function Login() {
               </div>
 
               <div className="flex items-center justify-between">
-
-
               </div>
 
               <button
@@ -170,26 +177,40 @@ export default function Login() {
               </button>
             </form>
 
-            <div className="mt-6 pt-5 border-t border-[#F2F4F8] text-center">
+            <div className="mt-6 pt-4 border-t border-[#F2F4F8] text-center space-y-1">
               <p className="text-[11px] text-[#9AA5BE]">
                 Sistema interno de{" "}
                 <span className="font-semibold text-[#6B7A94]">Sumar Centro de Atención Familiar</span>
               </p>
-              <p className="text-[10px] text-[#C7CEDD] mt-1.5">
+              <p className="text-[10px] text-[#A0AEC0]">
                 Desarrollado por{" "}
                 <a
                   href="https://wa.me/51955768525"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-semibold text-[#9AA5BE] hover:text-[#E8481E] transition-colors"
+                  className="font-medium text-[#6B7A94] hover:text-[#E8481E] transition-colors"
                 >
-                  JDK jesus
+                  Luciani Jiménez (JDKdev)
                 </a>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => setShowLegal(true)}
+                  className="text-[#9AA5BE] hover:text-[#E8481E] transition-colors underline underline-offset-2"
+                >
+                  Términos
+                </button>
               </p>
             </div>
           </div>
         </div>
       </div>
-    </div >
+
+      {/* Ventana flotante de Términos y Aviso Legal */}
+      <LegalTermsModal
+        isOpen={showLegal}
+        onClose={() => setShowLegal(false)}
+      />
+    </div>
   )
 }
